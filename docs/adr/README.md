@@ -9,3 +9,5 @@
 | [ADR-0003](0003-extensible-agent-adapter-architecture.md) | Adotar arquitetura de adapters extensíveis com paths injetáveis | accepted |
 | [ADR-0004](0004-safe-surgical-writes-conflict-detection-and-secrets.md) | Exigir escrita cirúrgica, detecção de conflitos externos e mascaramento de segredos | accepted |
 | [ADR-0005](0005-xdg-file-storage-library-layout-and-backup-retention.md) | Persistir estado, biblioteca compartilhada e backups rotacionados em arquivos XDG | accepted |
+| [ADR-0006](0006-usar-openssh-no-backend-desktop-para-ambientes-remotos.md) | Usar OpenSSH no backend desktop para ambientes remotos | proposed |
+| [ADR-0007](0007-separar-a-escrita-remota-segura-da-persistencia-local.md) | Separar a escrita remota segura da persistência local | proposed |

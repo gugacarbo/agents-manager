@@ -17,6 +17,7 @@ import {
 	FileText,
 	FolderOpen,
 	LayoutGrid,
+	Library,
 	Monitor,
 	Terminal,
 } from "lucide-react";
@@ -32,6 +33,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { AgentsPage, agentsQueryKey } from "@/features/agents";
 import { AgentConfigsPage } from "@/features/configs";
 import { DiffDemoPage } from "@/features/diff";
+import { LibraryPage } from "@/features/library";
 import { ProjectsPage } from "@/features/projects";
 import { RulesPage } from "@/features/rules";
 import { isTauriRuntime } from "@/lib/agents";
@@ -43,6 +45,7 @@ const navLink =
 const navigation = [
 	{ to: "/", label: "Agents", icon: LayoutGrid },
 	{ to: "/projects", label: "Projects", icon: FolderOpen },
+	{ to: "/library", label: "Library", icon: Library },
 ] as const;
 
 function RootLayout() {
@@ -225,6 +228,11 @@ function ProjectAgentRoute() {
 		<DefaultNotFound />
 	);
 }
+const libraryRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/library",
+	component: LibraryPage,
+});
 const routeTree = rootRoute.addChildren([
 	indexRoute,
 	editorRoute,
@@ -233,6 +241,7 @@ const routeTree = rootRoute.addChildren([
 	agentRoute,
 	projectsRoute,
 	projectAgentRoute,
+	libraryRoute,
 ]);
 
 function DefaultNotFound() {

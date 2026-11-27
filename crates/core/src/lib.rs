@@ -1,6 +1,7 @@
 pub mod config;
 pub mod domain;
 pub mod error;
+pub mod library;
 pub mod projects;
 pub mod structured;
 

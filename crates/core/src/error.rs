@@ -5,6 +5,8 @@ use thiserror::Error;
 /// Domain-level errors produced by `agents-manager-core`.
 #[derive(Debug, Clone, PartialEq, Eq, Error, Serialize, Deserialize, Type)]
 pub enum CoreError {
+    #[error("literal secret confirmation required")]
+    SecretConfirmationRequired,
     #[error("project already registered: {root_path}")]
     DuplicateProject { id: String, root_path: String },
     #[error("permission denied: {message}")]

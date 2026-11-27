@@ -147,3 +147,118 @@ pub struct StructuredPreviewResult {
     pub content: String,
     pub secret_spans: Vec<SecretSpan>,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "kebab-case")]
+pub enum SyncStrategy {
+    Symlink,
+    Copy,
+    Merge,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "kebab-case")]
+pub enum SyncTargetStatus {
+    InSync,
+    Drifted,
+    NotLinked,
+    BrokenSymlink,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncTarget {
+    pub agent: AgentKind,
+    pub scope: ConfigScope,
+    pub project_id: Option<String>,
+    pub path: String,
+    pub status: SyncTargetStatus,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryItem {
+    pub id: String,
+    pub category: ConfigCategory,
+    pub name: String,
+    pub source_path: String,
+    pub has_literal_secrets: bool,
+    pub targets: Vec<SyncTarget>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryItemContent {
+    pub content: String,
+    pub secret_spans: Vec<SecretSpan>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveLibraryItemRequest {
+    pub item_id: Option<String>,
+    pub category: ConfigCategory,
+    pub name: String,
+    pub content: String,
+    pub confirm_literal_secrets: Option<bool>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PromoteLibraryRequest {
+    pub path: String,
+    pub category: ConfigCategory,
+    pub name: String,
+    pub confirm_literal_secrets: Option<bool>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncSelection {
+    pub agent: AgentKind,
+    pub scope: ConfigScope,
+    pub project_id: Option<String>,
+    pub copy: Option<bool>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncPreviewRequest {
+    pub item_id: String,
+    pub targets: Vec<SyncSelection>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncApplyTarget {
+    pub selection: SyncSelection,
+    pub expected_sha256: Option<String>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncApplyRequest {
+    pub item_id: String,
+    pub targets: Vec<SyncApplyTarget>,
+}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedSyncTarget {
+    pub entry: ConfigFileEntry,
+    pub scope: ConfigScope,
+    pub project_id: Option<String>,
+    pub copy: bool,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncPreviewItem {
+    pub target_path: String,
+    pub agent: AgentKind,
+    pub scope: ConfigScope,
+    pub strategy: SyncStrategy,
+    pub current_content: Option<String>,
+    pub proposed_content: String,
+    pub expected_sha256: Option<String>,
+    pub changed: bool,
+    pub warnings: Vec<String>,
+    pub current_secret_spans: Vec<SecretSpan>,
+    pub proposed_secret_spans: Vec<SecretSpan>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncApplyResult {
+    pub target_path: String,
+    pub applied: bool,
+    pub strategy_used: SyncStrategy,
+    pub backup_path: Option<String>,
+    pub error: Option<crate::error::CoreError>,
+}

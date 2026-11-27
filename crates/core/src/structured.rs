@@ -53,7 +53,10 @@ fn server_patch(server: &McpServerConfig) -> Value {
     );
     Value::Object(map)
 }
-fn json_content(content: &str, request: &StructuredSaveRequest) -> Result<String, CoreError> {
+pub(crate) fn json_content(
+    content: &str,
+    request: &StructuredSaveRequest,
+) -> Result<String, CoreError> {
     let mut doc: Value = serde_json::from_str(content).map_err(|e| invalid(e.to_string()))?;
     if !doc.is_object() {
         return Err(invalid("JSON root must be an object"));
@@ -154,7 +157,10 @@ fn merge_toml(table: &mut Table, patch: &Map<String, Value>) -> Result<(), CoreE
     }
     Ok(())
 }
-fn toml_content(content: &str, request: &StructuredSaveRequest) -> Result<String, CoreError> {
+pub(crate) fn toml_content(
+    content: &str,
+    request: &StructuredSaveRequest,
+) -> Result<String, CoreError> {
     let mut doc: DocumentMut = content
         .parse::<DocumentMut>()
         .map_err(|e| invalid(e.to_string()))?;

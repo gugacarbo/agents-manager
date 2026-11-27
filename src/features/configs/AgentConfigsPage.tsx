@@ -13,6 +13,7 @@ import { type ConfigDocument, type ConfigEntry, configs } from "@/lib/configs";
 import { type Project, projects } from "@/lib/projects";
 import type { AgentSummary } from "@/lib/schemas";
 import { ConfigEditor } from "./ConfigEditor";
+import { PromoteButton } from "./PromoteButton";
 
 const names = {
 	"claude-code": "Claude Code",
@@ -141,10 +142,13 @@ export function AgentConfigsPage({
 				</div>
 			)}
 			{doc && (
-				<ConfigEditor
+				<div
 					key={`${doc.entry.category}:${doc.entry.path}:${doc.sha256}`}
-					initial={doc}
-				/>
+					className="space-y-3"
+				>
+					<ConfigEditor initial={doc} />
+					<PromoteButton document={doc} />
+				</div>
 			)}
 		</div>
 	);

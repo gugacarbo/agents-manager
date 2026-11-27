@@ -17,6 +17,14 @@ export const commands = {
 	listProjectConfigs: (projectId: string, kind: AgentKind, options?: InvokeOptions) => __TAURI_INVOKE<ConfigFileEntry[]>("list_project_configs", { projectId, kind }, options),
 	previewStructuredSave: (request: StructuredSaveRequest_Deserialize, draftContent: string | null, options?: InvokeOptions) => __TAURI_INVOKE<StructuredPreviewResult>("preview_structured_save", { request, draftContent }, options),
 	saveStructuredConfig: (request: StructuredSaveRequest_Deserialize, draftContent: string | null, options?: InvokeOptions) => __TAURI_INVOKE<SaveConfigResult>("save_structured_config", { request, draftContent }, options),
+	listLibraryItems: (options?: InvokeOptions) => __TAURI_INVOKE<LibraryItem_Serialize[]>("list_library_items", undefined, options),
+	readLibraryItem: (itemId: string, options?: InvokeOptions) => __TAURI_INVOKE<LibraryItemContent>("read_library_item", { itemId }, options),
+	promoteToLibrary: (request: PromoteLibraryRequest_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<LibraryItem_Serialize>("promote_to_library", { request }, options),
+	saveLibraryItem: (request: SaveLibraryItemRequest_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<LibraryItem_Serialize>("save_library_item", { request }, options),
+	deleteLibraryItem: (itemId: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("delete_library_item", { itemId }, options),
+	unlinkSync: (itemId: string, targetPath: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("unlink_sync", { itemId, targetPath }, options),
+	previewSync: (request: SyncPreviewRequest_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<SyncPreviewItem_Serialize[]>("preview_sync", { request }, options),
+	applySync: (request: SyncApplyRequest_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<SyncApplyResult_Serialize[]>("apply_sync", { request }, options),
 };
 
 /* Types */
@@ -62,8 +70,11 @@ export type ConfigFileEntry = {
 
 export type ConfigFormat = "json" | "toml" | "markdown";
 
+/**  Scope where an agent configuration resides. */
+export type ConfigScope = "global" | "project";
+
 /**  Domain-level errors produced by `agents-manager-core`. */
-export type CoreError = ({ DuplicateProject: {
+export type CoreError = "SecretConfirmationRequired" | ({ DuplicateProject: {
 	id: string,
 	root_path: string,
 } }) & { InvalidPath?: never; Io?: never; IoError?: never; NotFound?: never; PathNotAllowed?: never; PermissionDenied?: never; Serialization?: never; SyntaxError?: never } | ({ PermissionDenied: {
@@ -91,6 +102,31 @@ export type CoreError = ({ DuplicateProject: {
 ({ NotFound: {
 	target: string,
 } }) & { DuplicateProject?: never; InvalidPath?: never; Io?: never; IoError?: never; PathNotAllowed?: never; PermissionDenied?: never; Serialization?: never; SyntaxError?: never };
+
+export type LibraryItem = LibraryItem_Serialize | LibraryItem_Deserialize;
+
+export type LibraryItemContent = {
+	content: string,
+	secretSpans: SecretSpan[],
+};
+
+export type LibraryItem_Deserialize = {
+	id: string,
+	category: ConfigCategory,
+	name: string,
+	sourcePath: string,
+	hasLiteralSecrets: boolean,
+	targets: SyncTarget_Deserialize[],
+};
+
+export type LibraryItem_Serialize = {
+	id: string,
+	category: ConfigCategory,
+	name: string,
+	sourcePath: string,
+	hasLiteralSecrets: boolean,
+	targets: SyncTarget_Serialize[],
+};
 
 export type McpEnvVar = {
 	key: string,
@@ -131,6 +167,22 @@ export type ProjectSummary = {
 	available: boolean,
 };
 
+export type PromoteLibraryRequest = PromoteLibraryRequest_Serialize | PromoteLibraryRequest_Deserialize;
+
+export type PromoteLibraryRequest_Deserialize = {
+	path: string,
+	category: ConfigCategory,
+	name: string,
+	confirmLiteralSecrets?: boolean | null,
+};
+
+export type PromoteLibraryRequest_Serialize = {
+	path: string,
+	category: ConfigCategory,
+	name: string,
+	confirmLiteralSecrets: boolean | null,
+};
+
 export type SaveConfigRequest = SaveConfigRequest_Serialize | SaveConfigRequest_Deserialize;
 
 export type SaveConfigRequest_Deserialize = {
@@ -150,6 +202,24 @@ export type SaveConfigRequest_Serialize = {
 export type SaveConfigResult = {
 	sha256: string,
 	backupPath: string,
+};
+
+export type SaveLibraryItemRequest = SaveLibraryItemRequest_Serialize | SaveLibraryItemRequest_Deserialize;
+
+export type SaveLibraryItemRequest_Deserialize = {
+	itemId?: string | null,
+	category: ConfigCategory,
+	name: string,
+	content: string,
+	confirmLiteralSecrets?: boolean | null,
+};
+
+export type SaveLibraryItemRequest_Serialize = {
+	itemId: string | null,
+	category: ConfigCategory,
+	name: string,
+	content: string,
+	confirmLiteralSecrets: boolean | null,
 };
 
 export type SecretSpan = {
@@ -179,4 +249,126 @@ export type StructuredSaveRequest_Serialize = {
 	mcpServers: McpServerConfig_Serialize[] | null,
 	settingsPatch: { [key in string]: unknown } | null,
 	forceOverwrite: boolean | null,
+};
+
+export type SyncApplyRequest = SyncApplyRequest_Serialize | SyncApplyRequest_Deserialize;
+
+export type SyncApplyRequest_Deserialize = {
+	itemId: string,
+	targets: SyncApplyTarget_Deserialize[],
+};
+
+export type SyncApplyRequest_Serialize = {
+	itemId: string,
+	targets: SyncApplyTarget_Serialize[],
+};
+
+export type SyncApplyResult = SyncApplyResult_Serialize | SyncApplyResult_Deserialize;
+
+export type SyncApplyResult_Deserialize = {
+	targetPath: string,
+	applied: boolean,
+	strategyUsed: SyncStrategy,
+	backupPath?: string | null,
+	error?: CoreError | null,
+};
+
+export type SyncApplyResult_Serialize = {
+	targetPath: string,
+	applied: boolean,
+	strategyUsed: SyncStrategy,
+	backupPath: string | null,
+	error: CoreError | null,
+};
+
+export type SyncApplyTarget = SyncApplyTarget_Serialize | SyncApplyTarget_Deserialize;
+
+export type SyncApplyTarget_Deserialize = {
+	selection: SyncSelection_Deserialize,
+	expectedSha256?: string | null,
+};
+
+export type SyncApplyTarget_Serialize = {
+	selection: SyncSelection_Serialize,
+	expectedSha256: string | null,
+};
+
+export type SyncPreviewItem = SyncPreviewItem_Serialize | SyncPreviewItem_Deserialize;
+
+export type SyncPreviewItem_Deserialize = {
+	targetPath: string,
+	agent: AgentKind,
+	scope: ConfigScope,
+	strategy: SyncStrategy,
+	currentContent?: string | null,
+	proposedContent: string,
+	expectedSha256?: string | null,
+	changed: boolean,
+	warnings: string[],
+	currentSecretSpans: SecretSpan[],
+	proposedSecretSpans: SecretSpan[],
+};
+
+export type SyncPreviewItem_Serialize = {
+	targetPath: string,
+	agent: AgentKind,
+	scope: ConfigScope,
+	strategy: SyncStrategy,
+	currentContent: string | null,
+	proposedContent: string,
+	expectedSha256: string | null,
+	changed: boolean,
+	warnings: string[],
+	currentSecretSpans: SecretSpan[],
+	proposedSecretSpans: SecretSpan[],
+};
+
+export type SyncPreviewRequest = SyncPreviewRequest_Serialize | SyncPreviewRequest_Deserialize;
+
+export type SyncPreviewRequest_Deserialize = {
+	itemId: string,
+	targets: SyncSelection_Deserialize[],
+};
+
+export type SyncPreviewRequest_Serialize = {
+	itemId: string,
+	targets: SyncSelection_Serialize[],
+};
+
+export type SyncSelection = SyncSelection_Serialize | SyncSelection_Deserialize;
+
+export type SyncSelection_Deserialize = {
+	agent: AgentKind,
+	scope: ConfigScope,
+	projectId?: string | null,
+	copy?: boolean | null,
+};
+
+export type SyncSelection_Serialize = {
+	agent: AgentKind,
+	scope: ConfigScope,
+	projectId: string | null,
+	copy: boolean | null,
+};
+
+export type SyncStrategy = "symlink" | "copy" | "merge";
+
+export type SyncTarget = SyncTarget_Serialize | SyncTarget_Deserialize;
+
+export type SyncTargetStatus = "in-sync" | "drifted" | "not-linked" | "broken-symlink";
+
+export type SyncTarget_Deserialize = {
+	agent: AgentKind,
+	scope: ConfigScope,
+	projectId?: string | null,
+	path: string,
+	status: SyncTargetStatus,
+};
+
+export type SyncTarget_Serialize = {
+	agent: AgentKind,
+	scope: ConfigScope,
+	projectId: string | null,
+	path: string,
+	status: SyncTargetStatus,
 };

@@ -61,6 +61,30 @@
     "implemented-by": []
   },
   {
+    "id": "ADR-0006",
+    "path": "docs/adr/0006-usar-openssh-no-backend-desktop-para-ambientes-remotos.md",
+    "layer": "adr",
+    "title": "Usar OpenSSH no backend desktop para ambientes remotos",
+    "status": "proposed",
+    "builds-on": [
+      "ADR-0001",
+      "ADR-0003",
+      "ADR-0005"
+    ],
+    "superseded-by": null,
+    "implemented-by": []
+  },
+  {
+    "id": "ADR-0007",
+    "path": "docs/adr/0007-separar-a-escrita-remota-segura-da-persistencia-local.md",
+    "layer": "adr",
+    "title": "Separar a escrita remota segura da persistência local",
+    "status": "proposed",
+    "builds-on": [],
+    "superseded-by": null,
+    "implemented-by": []
+  },
+  {
     "id": "SPEC-0001",
     "path": "docs/specs/0001-global-agent-config-inspection-and-safe-editing.md",
     "layer": "specs",
@@ -99,7 +123,7 @@
     "path": "docs/specs/0003-shared-library-and-agent-sync.md",
     "layer": "specs",
     "title": "Gerenciar biblioteca compartilhada opcional e sincronizar configurações entre agentes",
-    "status": "draft",
+    "status": "accepted",
     "builds-on": [
       "ADR-0001",
       "ADR-0002",
@@ -110,5 +134,25 @@
     "superseded-by": null,
     "implemented-by": [],
     "design-ref": "docs/UI-PLAN.md"
+  },
+  {
+    "id": "SPEC-0005",
+    "path": "docs/specs/0005-cadastrar-e-inspecionar-ambientes-ssh.md",
+    "layer": "specs",
+    "title": "Cadastrar e inspecionar ambientes SSH",
+    "status": "draft",
+    "builds-on": [],
+    "superseded-by": null,
+    "implemented-by": []
+  },
+  {
+    "id": "SPEC-0006",
+    "path": "docs/specs/0006-editar-configuracoes-globais-de-agentes-via-ssh.md",
+    "layer": "specs",
+    "title": "Editar configurações globais de agentes via SSH",
+    "status": "draft",
+    "builds-on": [],
+    "superseded-by": null,
+    "implemented-by": []
   }
 ]

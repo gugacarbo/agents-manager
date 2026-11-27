@@ -73,6 +73,89 @@ pub fn list_project_configs(kind: AgentKind, root: &Path) -> Vec<ConfigFileEntry
         .map_or_else(Vec::new, |adapter| adapter.list_project_configs(root))
 }
 
+/// Resolve a canonical sync destination without accepting caller-provided paths.
+pub fn resolve_sync_target(
+    agent: AgentKind,
+    scope: agents_manager_core::domain::ConfigScope,
+    root: &Path,
+    category: agents_manager_core::domain::ConfigCategory,
+    slug: &str,
+) -> Option<ConfigFileEntry> {
+    use agents_manager_core::domain::{ConfigCategory as C, ConfigFormat as F, ConfigScope as S};
+    if slug.is_empty()
+        || !slug
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
+    {
+        return None;
+    }
+    let (relative, format) = match (agent, scope, category) {
+        (AgentKind::ClaudeCode, S::Global, C::Mcps) => (".claude.json".into(), F::Json),
+        (AgentKind::ClaudeCode, S::Project, C::Mcps) => (".mcp.json".into(), F::Json),
+        (AgentKind::ClaudeCode, _, C::Settings) => (".claude/settings.json".into(), F::Json),
+        (AgentKind::ClaudeCode, S::Global, C::Rules) => (".claude/CLAUDE.md".into(), F::Markdown),
+        (AgentKind::ClaudeCode, S::Project, C::Rules) => ("CLAUDE.md".into(), F::Markdown),
+        (AgentKind::ClaudeCode, _, C::Skills) => {
+            (format!(".claude/skills/{slug}/SKILL.md"), F::Markdown)
+        }
+        (AgentKind::Codex, _, C::Mcps | C::Settings) => (".codex/config.toml".into(), F::Toml),
+        (AgentKind::Codex, S::Global, C::Rules) => (".codex/AGENTS.md".into(), F::Markdown),
+        (AgentKind::Codex, S::Project, C::Rules) => ("AGENTS.md".into(), F::Markdown),
+        (AgentKind::Codex, S::Global, C::Skills) => {
+            (format!(".codex/skills/{slug}/SKILL.md"), F::Markdown)
+        }
+        (AgentKind::Codex, S::Project, C::Skills) => {
+            (format!(".agents/skills/{slug}/SKILL.md"), F::Markdown)
+        }
+        (AgentKind::Antigravity, S::Global, C::Mcps) => {
+            (".gemini/config/mcp_config.json".into(), F::Json)
+        }
+        (AgentKind::Antigravity, S::Project, C::Mcps) => {
+            (".gemini/mcp_config.json".into(), F::Json)
+        }
+        (AgentKind::Antigravity, S::Global, C::Settings) => (
+            if root.join(".gemini/config/config.json").is_file()
+                || !root.join(".gemini/settings.json").is_file()
+            {
+                ".gemini/config/config.json"
+            } else {
+                ".gemini/settings.json"
+            }
+            .into(),
+            F::Json,
+        ),
+        (AgentKind::Antigravity, S::Project, C::Settings) => {
+            (".gemini/settings.json".into(), F::Json)
+        }
+        (AgentKind::Antigravity, S::Global, C::Rules) => (".gemini/GEMINI.md".into(), F::Markdown),
+        (AgentKind::Antigravity, S::Project, C::Rules) => (".gemini/GEMINI.md".into(), F::Markdown),
+        (AgentKind::Antigravity, S::Global, C::Skills) => (
+            format!(".gemini/config/skills/{slug}/SKILL.md"),
+            F::Markdown,
+        ),
+        (AgentKind::Antigravity, S::Project, C::Skills) => {
+            (format!(".gemini/skills/{slug}/SKILL.md"), F::Markdown)
+        }
+    };
+    let mut entries = Vec::new();
+    add(&mut entries, root, agent, category, format, &relative);
+    entries.pop()
+}
+
+/// Reject symlink traversal in destination ancestors, while leaving the final link
+/// (or skill directory link) for the sync engine to validate.
+pub fn safe_sync_target(root: &Path, target: &Path, skill: bool) -> bool {
+    let Some(parent) = target.parent() else {
+        return false;
+    };
+    let ancestor = if skill {
+        parent.parent().unwrap_or(parent)
+    } else {
+        parent
+    };
+    ancestor == root || safe_relative(root, ancestor)
+}
+
 /// Resolve a path only when it belongs to a registered project and is discovered.
 pub fn allowed_project_config(
     roots: &[std::path::PathBuf],

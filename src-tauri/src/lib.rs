@@ -1,4 +1,5 @@
 pub mod commands;
+mod sync_preview;
 mod watcher;
 
 use std::path::{Path, PathBuf};
@@ -18,7 +19,15 @@ fn specta_builder<R: tauri::Runtime>() -> Builder<R> {
         commands::remove_project,
         commands::list_project_configs,
         commands::preview_structured_save,
-        commands::save_structured_config
+        commands::save_structured_config,
+        commands::list_library_items,
+        commands::read_library_item,
+        commands::promote_to_library,
+        commands::save_library_item,
+        commands::delete_library_item,
+        commands::unlink_sync,
+        commands::preview_sync,
+        commands::apply_sync
     ])
 }
 
@@ -28,6 +37,7 @@ fn with_ipc_handler<R: tauri::Runtime>(
 ) -> tauri::Builder<R> {
     use tauri::{Emitter, Manager};
     app.manage(watcher::WatchState::default())
+        .manage(sync_preview::PreviewState::default())
         .setup(|app| {
             let handle = app.handle().clone();
             let state = app.state::<watcher::WatchState>();
