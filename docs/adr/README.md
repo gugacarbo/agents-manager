@@ -12,3 +12,4 @@
 | [ADR-0006](0006-usar-openssh-no-backend-desktop-para-ambientes-remotos.md) | Usar OpenSSH no backend desktop para ambientes remotos | proposed |
 | [ADR-0007](0007-separar-a-escrita-remota-segura-da-persistencia-local.md) | Separar a escrita remota segura da persistência local | proposed |
 | [ADR-0008](0008-isolar-a-autenticacao-do-claude-code-por-perfil.md) | Isolar a autenticação do Claude Code por perfil | accepted |
+| [ADR-0009](0009-consultar-a-cota-da-conta-ativa-do-claude-desktop.md) | Consultar cotas de contas do Claude Desktop por perfil isolado | accepted |

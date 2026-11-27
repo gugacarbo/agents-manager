@@ -96,10 +96,24 @@ const GUI_ENV: &[&str] = &[
     "LC_CTYPE",
 ];
 const SYSTEM_PATH: &str = "/usr/local/bin:/usr/bin:/bin";
+const GNOME_TERMINAL_ARGS: &[&str] = &["--wait", "--working-directory=/", "--"];
+// Ghostty's -e preserves argv, disables single-instance forwarding, and waits
+// until the command exits. Ignore user config for this dedicated window.
+const GHOSTTY_ARGS: &[&str] = &[
+    "--config-default-files=false",
+    "--working-directory=/",
+    "-e",
+];
+const BROWSER_XDG_ENV: &[&str] = &[
+    "XDG_CONFIG_HOME",
+    "XDG_CONFIG_DIRS",
+    "XDG_DATA_HOME",
+    "XDG_DATA_DIRS",
+];
 
 pub struct ClaudePrograms {
     cli: Option<PathBuf>,
-    terminal: PathBuf,
+    terminals: Vec<(PathBuf, &'static [&'static str])>,
     timeout: Duration,
     environment: Vec<(OsString, OsString)>,
     terminal_home: Option<PathBuf>,
@@ -109,10 +123,16 @@ impl ClaudePrograms {
     pub fn local(home: PathBuf) -> Self {
         Self {
             cli: None,
-            terminal: "/usr/bin/gnome-terminal".into(),
+            terminals: [
+                ("/usr/bin/gnome-terminal".into(), GNOME_TERMINAL_ARGS),
+                ("/usr/bin/ghostty".into(), GHOSTTY_ARGS),
+                ("/usr/local/bin/ghostty".into(), GHOSTTY_ARGS),
+            ]
+            .into(),
             timeout: Duration::from_secs(5),
             environment: GUI_ENV
                 .iter()
+                .chain(BROWSER_XDG_ENV)
                 .filter_map(|&key| std::env::var_os(key).map(|value| (key.into(), value)))
                 .collect(),
             terminal_home: Some(home),
@@ -128,7 +148,7 @@ impl ClaudePrograms {
     ) -> Self {
         Self {
             cli: Some(cli),
-            terminal,
+            terminals: vec![(terminal, GNOME_TERMINAL_ARGS)],
             timeout,
             environment: environment.into_iter().collect(),
             terminal_home: None,
@@ -163,6 +183,13 @@ impl ClaudePrograms {
         self.environment
             .iter()
             .filter(|(key, _)| GUI_ENV.iter().any(|allowed| key == *allowed))
+            .map(|(key, value)| (key.as_os_str(), value.as_os_str()))
+    }
+
+    fn browser_xdg_env(&self) -> impl Iterator<Item = (&OsStr, &OsStr)> {
+        self.environment
+            .iter()
+            .filter(|(key, _)| BROWSER_XDG_ENV.iter().any(|allowed| key == *allowed))
             .map(|(key, value)| (key.as_os_str(), value.as_os_str()))
     }
 

@@ -13,7 +13,7 @@ const accountErrors = {
 	statusInvalid:
 		"Claude Code did not report a valid profile status. Update Claude Code and try again.",
 	terminalUnavailable:
-		"Install GNOME Terminal with support for --wait, then retry login from the desktop app.",
+		"Could not open a login terminal. Make sure Ghostty or GNOME Terminal is available, then retry from your Linux desktop.",
 	loginFailed:
 		"The terminal login did not complete. Retry login and follow the steps in the terminal.",
 } satisfies Record<AccountError, string>;

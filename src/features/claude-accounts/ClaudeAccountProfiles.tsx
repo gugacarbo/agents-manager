@@ -10,6 +10,7 @@ import { type ClaudeAccount, commands } from "@/bindings/tauri";
 import { Button } from "@/components/ui/button";
 import { accountErrorMessage } from "./account-status";
 import { ClaudeAccountProfile } from "./ClaudeAccountProfile";
+import { ClaudeAccountQuotas } from "./ClaudeAccountQuotas";
 
 type Profiles =
 	| { state: "loading" }
@@ -89,11 +90,13 @@ export function ClaudeAccountProfiles() {
 					Claude Code accounts
 				</h1>
 				<p className="text-sm text-muted-foreground">
-					Profiles are stored on this desktop and do not change your default
-					Claude Code login. Start the official Claude Code login here, then
-					complete it in GNOME Terminal. This app only checks the result.
+					Claude Code profile management does not use Claude Desktop or change
+					your default Claude Code login. Follow the terminal and browser
+					prompts to complete the official Claude Code login. The app only
+					checks the result.
 				</p>
 			</header>
+			<ClaudeAccountQuotas />
 			<form
 				className="space-y-2 rounded-lg border border-border bg-card p-4"
 				onSubmit={(event) => void addProfile(event)}

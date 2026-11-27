@@ -47,6 +47,11 @@ fn specta_builder<R: tauri::Runtime>() -> Builder<R> {
     }
     #[cfg(target_os = "linux")]
     return build!(
+        commands::claude_desktop_quotas::list_claude_desktop_quota_profiles,
+        commands::claude_desktop_quotas::create_claude_desktop_quota_profile,
+        commands::claude_desktop_quotas::open_claude_desktop_quota_login,
+        commands::claude_desktop_quotas::link_claude_desktop_quota_account,
+        commands::claude_desktop_quotas::refresh_claude_desktop_quota,
         commands::claude_accounts::list_claude_accounts,
         commands::claude_accounts::create_claude_account,
         commands::claude_accounts::start_claude_account_login,

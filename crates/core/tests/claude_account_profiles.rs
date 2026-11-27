@@ -153,11 +153,14 @@ fn cancelled_or_unconfirmed_login_is_not_connected_and_can_be_retried() {
         app.start_login(&a.id).unwrap().state,
         AccountState::Connected
     );
-    let app = f.accounts("claude", "exit 1");
-    assert_ne!(
-        app.start_login(&a.id).unwrap().state,
-        AccountState::Connected
-    );
+    // Some emulators report their own success even when the CLI was cancelled.
+    for terminal in ["exit 1", "exit 0"] {
+        let app = f.accounts("claude", terminal);
+        assert_eq!(
+            app.start_login(&a.id).unwrap().error_code,
+            Some(AccountError::LoginFailed)
+        );
+    }
 }
 
 #[test]

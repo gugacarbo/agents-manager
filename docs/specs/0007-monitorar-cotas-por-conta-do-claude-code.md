@@ -1,90 +1,122 @@
 ---
-status: draft
+status: accepted
 date: 2026-11-27
-builds-on: [ADR-0008]
+builds-on: [ADR-0008, ADR-0009]
 implemented-by: []
 ---
 
-# Monitorar cotas por conta do Claude Code
+# Monitorar cotas de várias contas do Claude Desktop
 
 ## Goal
 
-Consultar, no desktop Linux, as cotas de cada conta cadastrada mesmo quando não há sessões do Claude
-Code abertas. O cadastro de contas é tratado separadamente em
-[SPEC-0006](0006-cadastrar-contas-do-claude-code-em-perfis-isolados.md).
+No Linux, cadastrar várias contas do Claude Desktop e consultar cada uma com o cliente fechado,
+incluindo contas de perfis isolados que não estão ativos na instalação padrão.
 
 ## Flow
 
-1. Ao abrir a tela de monitoramento, o app tenta consultar as contas elegíveis separadamente.
-2. O botão de atualização dispara nova consulta para as contas elegíveis, respeitando o intervalo
-   por conta. Não há atualização periódica, em segundo plano ou reagendada automaticamente.
-3. Cada cartão identifica a conta e mostra os dados retornados ou o estado da consulta.
+1. Na tela de contas do Desktop, o usuário escolhe **Adicionar conta**. Abre o login oficial em um
+   perfil isolado. Depois de concluir a autenticação e fechar o Desktop, confirma o vínculo. Essa
+   confirmação verifica a identidade independentemente da resposta de cota.
+2. O vínculo existente e seu histórico aparecem como a conta da sessão padrão. Em instalações novas,
+   o usuário pode vincular a sessão padrão explicitamente.
+3. Ao abrir a tela, ao escolher **Atualizar todas** ou ao escolher **Atualizar** em uma conta,
+   consultar as contas elegíveis com o Desktop fechado. Cada conta mostra o resultado da própria
+   tentativa.
+4. Quando uma sessão isolada expira, o usuário pode abrir o login desse perfil novamente e confirmar
+   a mesma identidade. Nenhum login é iniciado pelo ato de atualizar a cota.
 
 ## Contract
 
-- Para cada conta, mostrar uso e horário de renovação das janelas de 5h e 7d quando disponíveis.
-  Campos ausentes são indisponíveis, não zero; a ausência de um campo não oculta os demais.
-- A consulta é vinculada à conta autenticada, não ao processo, à sessão ou ao projeto ativo. A falha
-  ou limitação de uma conta não impede atualizar outra elegível.
-- Há no mínimo 60 segundos entre o início de duas tentativas para a mesma conta, inclusive após
-  falha. Não iniciar uma segunda consulta enquanto outra da mesma conta estiver em andamento, mesmo
-  após 60 segundos. O limite vale igualmente para abertura e botão, sem enfileirar consultas
-  bloqueadas.
-- Mostrar o horário da última tentativa, se houve, e o horário da última coleta bem-sucedida, se
-  houver dados. Uma falha mostra o erro da conta. Se a UI mantiver dados da coleta anterior após
-  falha ou sem nova coleta, apresenta-os como históricos, com o horário original, não como atuais.
+- Cada vínculo é associado a um único perfil e a uma identidade estável. A mesma identidade não pode
+  ser cadastrada duas vezes. Confirmar uma identidade diferente em um perfil já vinculado produz
+  erro e preserva a leitura anterior.
+- Verificar a identidade a cada coleta no perfil do próprio vínculo. Erros e indisponibilidade de
+  uma conta não impedem a atualização de outras e não provocam consulta a fontes alternativas.
+- Mostrar o percentual usado e o horário de renovação das janelas de 5h e 7d. Tratar cada campo
+  ausente como indisponível e mostrar campos presentes, inclusive zero.
+- Aplicar por conta o intervalo mínimo de 60 segundos entre inícios de tentativas, inclusive após
+  erro e reabertura. Bloquear tentativas simultâneas para a mesma conta. A atualização em lote
+  respeita as mesmas regras e descarta tentativas bloqueadas sem enfileirar novas.
+- Exibir os horários da última tentativa e da última coleta bem-sucedida quando existirem. Dados
+  recuperados do disco ou mantidos após falha ou bloqueio aparecem como históricos.
+- A autenticação e a coleta em perfis isolados preservam a sessão padrão. O app persiste identidade,
+  vínculo e metadados de cota, seguindo a fronteira de credenciais da ADR-0009.
 
 ## Edge cases
 
-| #   | Quando                                                                                                                     | O sistema deve                                                                                                                                                                                                    |
-| --- | -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Duas contas conectadas, sem sessões abertas, e o usuário abre a tela ou aciona o botão com ambas elegíveis                 | Consultar e atribuir uso e renovação somente à conta correta.                                                                                                                                                     |
-| 2   | A fonte retorna apenas parte dos campos ou nenhuma das janelas                                                             | Mostrar o que foi retornado e indicar o restante como indisponível, sem estimar dados.                                                                                                                            |
-| 3   | A consulta falha ou a conta deixa de estar autenticada                                                                     | Mostrar o erro daquela conta, sem promover cache a leitura atual ou impedir a consulta de outra conta. Se nunca houve sucesso, não mostrar dados de cota.                                                         |
-| 4   | Abre a tela ou clica em atualizar antes de 60 segundos, inclusive após falha, ou durante outra consulta para a mesma conta | Não iniciar nem agendar tentativa adicional; mostrar que a consulta está em andamento ou que é necessário aguardar. A partir de 60 segundos e sem consulta em andamento, aceitar o próximo acionamento explícito. |
-| 5   | A tela permanece aberta ou é fechada sem novo acionamento explícito                                                        | Não iniciar consulta em segundo plano nem ao expirar o intervalo.                                                                                                                                                 |
+| #   | Quando                                                                                                      | O sistema deve                                                                                                                          |
+| --- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | O usuário adiciona dois perfis, conclui os logins e fecha o Desktop                                         | Manter dois vínculos independentes, verificar cada identidade e atualizar ambas as cotas sem abrir o Desktop ou alterar o login padrão. |
+| 2   | A fonte devolve horários ou percentuais parciais                                                            | Mostrar os campos presentes e indicar os demais como indisponíveis.                                                                     |
+| 3   | Uma conta falha ou expira durante a atualização em lote                                                     | Preservar o histórico da conta, mostrar o erro e continuar as outras contas elegíveis.                                                  |
+| 4   | Uma atualização manual e outra em lote pedem a mesma conta dentro do intervalo ou com consulta em andamento | Bloquear apenas aquela conta sem reagendar a solicitação.                                                                               |
+| 5   | A tela permanece aberta, é fechada ou recupera foco sem novo acionamento explícito                          | Manter os dados exibidos sem iniciar coleta em segundo plano.                                                                           |
+| 6   | A identidade diverge, a fonte está indisponível ou a conta já existe em outro perfil                        | Mostrar erro sem atribuir nova leitura, criar um vínculo duplicado ou consultar outra conta.                                            |
+| 7   | O app abre com o arquivo da versão de conta única                                                           | Exibir a conta da sessão padrão e os dados anteriormente salvos como históricos até obter nova leitura.                                 |
+| 8   | O usuário fecha a tela ou reinicia o app durante o cadastro                                                 | Manter o perfil pendente e permitir retomar o fluxo oficial sem perder vínculos anteriores.                                             |
 
 ## Out of scope
 
-Monitoramento de sessão ou projeto, alertas, coleta em segundo plano e estimativa de consumo.
+Coleta da CLI, troca automática de conta no Desktop, importação de sessões do Switcher, alertas e
+coleta periódica.
 
 ## Open questions
 
-- [ ] **Bloqueante:** qual fonte permite obter e atribuir cotas às contas cadastradas, sem sessão
-      aberta no Claude Code e sem quebrar a fronteira de autenticação da ADR-0008? Antes da
-      implementação, executar a prova manual no Linux descrita abaixo. Registrar mecanismo e versão
-      usados, resultado por conta, janelas e campos disponíveis, evidência da atribuição e limites
-      observados, sem segredos. Sem evidência reproduzível, a Spec continua em rascunho e o
-      monitoramento não é implementado.
+Nenhuma de produto. A disponibilidade da fonte para duas contas reais é verificada no DoD.
 
 ## Definition of Done
 
-**Prova manual da fonte (pré-requisito, caso 1):** no Linux, usar duas contas de teste distintas,
-com login em perfis separados. Encerrar todas as sessões do Claude Code, inclusive as de segundo
-plano. Consultar pelo mecanismo candidato com cada perfil, sem iniciar uma sessão. Confirmar a
-identidade independentemente da consulta de cotas e cruzar os dados retornados com uma leitura
-confiável por conta; repetir alternando A → B → A para verificar a atribuição. A prova passa se
-obtiver uma leitura de cota atribuível a cada conta, com uso e horário de renovação nas janelas
-expostas, sem abrir sessão ou expor credenciais. Registrar campos ausentes, sem inferi-los.
-
-Após validação, usar os runners existentes abaixo. Os alvos dedicados são **futuros**; cada comando
-precisa sair com código zero e executar os casos indicados sem pulá-los. Usar fonte simulada e
-relógio controlado para as verificações automatizadas.
+Os testes automatizados usam fonte simulada e relógio controlado.
 
 ```bash
-cargo test --workspace --test claude_account_quotas                       # casos 1–5: escopo, dados parciais, falha, intervalo e concorrência
-bun run test:ts src/features/claude-accounts/ClaudeAccountQuotas.test.tsx # casos 1–5: gatilhos, estados e horários por conta
+cargo test --workspace --test claude_account_quotas                       # casos 1–4 e 6–8
+bun run test:ts src/features/claude-accounts/ClaudeAccountQuotas.test.tsx # casos 1–8
+python3 scripts/docs-check
 ```
 
-Com `bun run dev`, repetir no app Linux o cenário de duas contas sem sessões e conferir uso e
-renovação contra a prova da fonte; verificar tentativa sem sucesso com erro e horário, sem
-apresentar o último sucesso como dado atual (casos 1–3).
+Com `bun run dev` no Linux, cadastrar duas contas de teste no Desktop, fechar o cliente e coletar a
+cota de cada conta no app. Comparar percentuais e horários de renovação com uma referência de cada
+conta e verificar que configuração e vínculo padrão seguem intactos, inclusive após reabrir.
 
 ## Human review
 
-Conferir que, em cada cartão, identidade, horário da coleta, indisponibilidade e erro podem ser
-entendidos sem confundir valores históricos com atuais.
+Conferir que a tela identifica cada conta, seu estado de autenticação, o resultado da atualização em
+lote e a idade dos dados.
 
 ## Verification
 
-Fonte não validada. Prova manual, implementação e execução do DoD funcional pendentes.
+- No Linux, o Claude Desktop 6.28899.6 abriu dois perfis XDG privados pelo botão **Add account**.
+  Cada perfil recebeu seu `config.json`, e o arquivo da sessão padrão manteve o mesmo conteúdo. Os
+  dois cadastros reapareceram depois de navegar para fora da tela. A confirmação de um perfil sem
+  sessão autenticada mostrou erro e manteve o cadastro pendente.
+- No app nativo, **Refresh all** coletou a cota da conta padrão e deixou de fora os dois perfis
+  pendentes. Ainda falta repetir a coleta com duas contas reais autenticadas em perfis separados.
+- Passaram os 8 testes do alvo Rust `claude_account_quotas` e os 8 de
+  `ClaudeAccountQuotas.test.tsx`. Passaram também `validate:fast`, a formatação, os builds web e
+  Storybook e as suítes Storybook e Playwright. Os demais alvos Rust passaram com os três testes que
+  exigem `sshd` filtrados.
+
+### Entrega inicial com a conta padrão
+
+- Em 2026-11-27, no Linux com o Claude Desktop 6.28899.6 fechado, o perfil confirmou a identidade da
+  conta ativa independentemente da cota. A leitura direta das 10h29 (horário de Brasília) confirmou
+  os percentuais do registro do Switcher das 10h26 para a mesma conta. A janela de 5h retornou 0%
+  sem horário de renovação nas duas leituras. A de 7d retornou 100% e renovação em 30/11 por volta
+  das 19h, com cerca de um segundo de diferença entre as fontes.
+- A consulta retornou HTTP 429 nas duas tentativas com o Switcher em execução. A leitura
+  bem-sucedida foi obtida com ambos os clientes fechados. O teste não alterou o login nem a
+  configuração do Desktop.
+
+- O alvo Rust `claude_account_quotas` passou com 4 testes, cobrindo vínculo sem coleta,
+  persistência, divergência de identidade, falha, intervalo e concorrência entre instâncias. O alvo
+  `ClaudeAccountQuotas.test.tsx` passou com 9 testes, cobrindo os seis casos da Spec na interface.
+- Em 2026-11-27, no app nativo iniciado com `bun run dev` e dados XDG de teste, o vínculo foi
+  concluído sem tentativa de cota. Às 10h42, com os dois clientes fechados, a coleta retornou 0% na
+  janela de 5h, com renovação indisponível, e 100% na janela de 7d, com renovação em 30/11 às 19h
+  (horário de Brasília). Uma segunda solicitação antes de 60 segundos mostrou a espera e preservou a
+  leitura como histórica. Ao reabrir o app com a fonte indisponível, a interface mostrou o erro e
+  manteve a leitura histórica com o horário original.
+- `python3 scripts/docs-check`, `bun run validate:fast`, `bun run format:check`,
+  `bun run build:web`, `bun run test:storybook`, `bun run build-storybook` e `bun run test:e2e`
+  passaram. A suíte global de Rust depende de `sshd`, ausente neste ambiente. Com os três testes que
+  iniciam um servidor SSH local filtrados, todos os demais alvos do workspace passaram.

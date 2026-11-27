@@ -103,6 +103,18 @@
     "implemented-by": []
   },
   {
+    "id": "ADR-0009",
+    "path": "docs/adr/0009-consultar-a-cota-da-conta-ativa-do-claude-desktop.md",
+    "layer": "adr",
+    "title": "Consultar cotas de contas do Claude Desktop por perfil isolado",
+    "status": "accepted",
+    "builds-on": [
+      "ADR-0008"
+    ],
+    "superseded-by": null,
+    "implemented-by": []
+  },
+  {
     "id": "SPEC-0001",
     "path": "docs/specs/0001-global-agent-config-inspection-and-safe-editing.md",
     "layer": "specs",
@@ -197,10 +209,11 @@
     "id": "SPEC-0007",
     "path": "docs/specs/0007-monitorar-cotas-por-conta-do-claude-code.md",
     "layer": "specs",
-    "title": "Monitorar cotas por conta do Claude Code",
-    "status": "draft",
+    "title": "Monitorar cotas de várias contas do Claude Desktop",
+    "status": "accepted",
     "builds-on": [
-      "ADR-0008"
+      "ADR-0008",
+      "ADR-0009"
     ],
     "superseded-by": null,
     "implemented-by": []

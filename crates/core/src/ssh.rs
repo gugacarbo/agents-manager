@@ -193,7 +193,18 @@ impl SshTransport {
             }
         }
         if !config_only {
-            command.arg("printf 'AM_SSH_INVENTORY_V1\\n'; printf 'host='; hostname; printf 'user='; id -un; if command -v claude >/dev/null 2>&1; then printf 'claude=1\\n'; else printf 'claude=0\\n'; fi; if command -v codex >/dev/null 2>&1; then printf 'codex=1\\n'; else printf 'codex=0\\n'; fi; printf 'AM_SSH_END_V1\\n'");
+            command.arg(
+                r#"am_has_agent() {
+    command -v "$1" >/dev/null 2>&1 ||
+        { test -n "${HOME:-}" && test -f "$HOME/.local/bin/$1" && test -x "$HOME/.local/bin/$1"; }
+}
+printf 'AM_SSH_INVENTORY_V1\n'
+printf 'host='; hostname
+printf 'user='; id -un
+if am_has_agent claude; then printf 'claude=1\n'; else printf 'claude=0\n'; fi
+if am_has_agent codex; then printf 'codex=1\n'; else printf 'codex=0\n'; fi
+printf 'AM_SSH_END_V1\n'"#,
+            );
         }
         let mut child = command.spawn().map_err(|e| {
             if e.kind() == std::io::ErrorKind::NotFound {

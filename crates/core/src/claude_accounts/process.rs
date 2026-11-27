@@ -6,8 +6,10 @@ use nix::{
 };
 use serde::Deserialize;
 use std::{
+    ffi::OsString,
+    fs,
     io::{self, Read},
-    os::unix::process::CommandExt,
+    os::unix::{fs::PermissionsExt, process::CommandExt},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     thread,
@@ -15,6 +17,29 @@ use std::{
 };
 
 const STATUS_LIMIT: usize = 16 * 1024;
+const LOGIN_COMMAND: &str = r#"
+completed=$1
+shift
+"$@" auth login && : > "$completed"
+"#;
+
+// Only the opener gets the original desktop HOME/XDG paths. Claude Code
+// invokes BROWSER with its URL; forward it without reading or logging it.
+const BROWSER_OPENER: &str = r#"#!/bin/sh
+export HOME="$DESKTOP_HOME"
+export XDG_CONFIG_HOME="${DESKTOP_XDG_CONFIG_HOME:-$HOME/.config}"
+export XDG_DATA_HOME="${DESKTOP_XDG_DATA_HOME:-$HOME/.local/share}"
+export XDG_CONFIG_DIRS="${DESKTOP_XDG_CONFIG_DIRS:-/etc/xdg}"
+export XDG_DATA_DIRS="${DESKTOP_XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+unset BROWSER CLAUDE_CONFIG_DIR DESKTOP_HOME DESKTOP_XDG_CONFIG_HOME DESKTOP_XDG_CONFIG_DIRS DESKTOP_XDG_DATA_HOME DESKTOP_XDG_DATA_DIRS
+exec /usr/bin/xdg-open "$@"
+"#;
+
+fn assignment(mut key: OsString, value: &std::ffi::OsStr) -> OsString {
+    key.push("=");
+    key.push(value);
+    key
+}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -74,38 +99,61 @@ impl ClaudePrograms {
     }
 
     pub(super) fn login(&self, cli: &Path, paths: &ProfilePaths) -> Result<bool, AccountError> {
-        let mut command = Command::new(&self.terminal);
-        command
-            .args([
-                "--wait",
-                "--working-directory=/",
-                "--",
-                "/usr/bin/env",
-                "-i",
-            ])
-            .args(self.cli_env(paths).map(|(key, value)| {
-                let mut assignment = key.to_os_string();
-                assignment.push("=");
-                assignment.push(value);
-                assignment
-            }))
-            .arg(cli)
-            .args(["auth", "login"])
-            .current_dir("/")
-            .env_clear()
-            .env("PATH", super::SYSTEM_PATH)
-            .envs(self.gui_env())
-            // Local emulator diagnostics aren't the terminal's interactive streams.
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null());
+        // Ghostty waits for the CLI, but returns its own exit status. This private
+        // marker contains no CLI output and is written only on a successful login.
+        let launch = tempfile::tempdir_in(&paths.home).map_err(super::storage)?;
+        let completed = launch.path().join("completed");
+        let mut assignments: Vec<_> = self
+            .cli_env(paths)
+            .map(|(key, value)| assignment(key.into(), value))
+            .collect();
         if let Some(home) = &self.terminal_home {
-            command.env("HOME", home);
+            let opener = launch.path().join("open-browser");
+            fs::write(&opener, BROWSER_OPENER).map_err(super::storage)?;
+            fs::set_permissions(&opener, fs::Permissions::from_mode(0o700))
+                .map_err(super::storage)?;
+            assignments.push(assignment("BROWSER".into(), opener.as_os_str()));
+            assignments.push(assignment("DESKTOP_HOME".into(), home.as_os_str()));
+            for (key, value) in self.browser_xdg_env() {
+                let mut name = OsString::from("DESKTOP_");
+                name.push(key);
+                assignments.push(assignment(name, value));
+            }
         }
-        command
-            .status()
-            .map(|status| status.success())
-            .map_err(|_| AccountError::TerminalUnavailable)
+        for (terminal, args) in &self.terminals {
+            let mut command = Command::new(terminal);
+            command
+                .args(*args)
+                .args(["/usr/bin/env", "-i"])
+                .args(&assignments)
+                .args(["/bin/sh", "-c", LOGIN_COMMAND, "claude-account-login"])
+                .arg(&completed)
+                .arg(cli)
+                .current_dir("/")
+                .env_clear()
+                .env("PATH", super::SYSTEM_PATH)
+                .envs(self.gui_env())
+                .envs(self.browser_xdg_env())
+                // Local emulator diagnostics aren't the terminal's interactive streams.
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null());
+            if let Some(home) = &self.terminal_home {
+                command.env("HOME", home);
+            }
+            match command.spawn() {
+                // Never try another emulator after one has started: its window may
+                // already have launched the CLI, even if the emulator exits nonzero.
+                Ok(mut child) => {
+                    child
+                        .wait()
+                        .map_err(|_| AccountError::TerminalUnavailable)?;
+                    return Ok(completed.is_file());
+                }
+                Err(_) => continue,
+            }
+        }
+        Err(AccountError::TerminalUnavailable)
     }
 }
 

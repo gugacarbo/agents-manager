@@ -1,5 +1,7 @@
 #[cfg(target_os = "linux")]
 pub mod claude_accounts;
+#[cfg(target_os = "linux")]
+pub mod claude_desktop_quotas;
 pub mod remote;
 
 use agents_manager_core::domain::AgentSummary;
@@ -71,6 +73,9 @@ fn account_private_path(path: &Path) -> Result<bool, CoreError> {
     {
         Ok(agents_manager_core::claude_accounts::is_private_path(
             &claude_accounts::private_store()?,
+            path,
+        ) || agents_manager_core::claude_accounts::is_private_path(
+            &claude_desktop_quotas::private_store()?,
             path,
         ))
     }

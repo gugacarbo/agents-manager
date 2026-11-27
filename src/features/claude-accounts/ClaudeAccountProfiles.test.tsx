@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
-import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
+import { clearMocks, mockIPC as tauriMockIPC } from "@tauri-apps/api/mocks";
 import {
 	cleanup,
 	fireEvent,
@@ -11,6 +11,15 @@ import {
 import { afterEach, describe, expect, it } from "vitest";
 import type { AccountStatus_Serialize, ClaudeAccount } from "@/bindings/tauri";
 import { createAppRouter } from "@/router";
+
+const mockIPC: typeof tauriMockIPC = (callback, options) =>
+	tauriMockIPC(
+		(command, args) =>
+			command === "list_claude_desktop_quota_profiles"
+				? []
+				: callback(command, args),
+		options,
+	);
 
 const personal = { id: "profile-personal", displayName: "Personal" };
 const work = { id: "profile-work", displayName: "Work" };
@@ -98,11 +107,12 @@ describe("Claude Code account profiles", () => {
 		});
 		const first = renderPage("/");
 		fireEvent.click(
-			await screen.findByRole("link", { name: "Claude accounts" }),
+			await screen.findByRole("link", { name: "Claude Code accounts" }),
 		);
 		expect(
 			await screen.findByRole("heading", { name: "Claude Code accounts" }),
 		).toBeVisible();
+		expect(screen.getByText(/does not use Claude Desktop/i)).toBeVisible();
 		expect(
 			screen.queryByRole("combobox", { name: "Environment" }),
 		).not.toBeInTheDocument();

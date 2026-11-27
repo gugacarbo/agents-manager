@@ -1,5 +1,6 @@
 #[cfg(target_os = "linux")]
 pub mod claude_accounts;
+pub mod claude_desktop_quotas;
 pub mod config;
 pub mod domain;
 pub mod error;

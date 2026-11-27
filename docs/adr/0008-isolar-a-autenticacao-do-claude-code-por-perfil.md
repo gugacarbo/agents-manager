@@ -8,6 +8,9 @@ deciders: []
 
 # Isolar a autenticação do Claude Code por perfil
 
+> CURRENT TRUTH: Esta decisão vale apenas para a CLI do Claude Code. O monitoramento prioriza o
+> Claude Desktop (SPEC-0007), sem autorizar acesso ao cache de credenciais ou alterações no login.
+
 ## Context and Problem
 
 O aplicativo precisa representar múltiplas contas locais do Claude Code sem assumir controle sobre a

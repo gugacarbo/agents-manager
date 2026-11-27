@@ -35,6 +35,11 @@ export const commands = {
 	reviewRemoteConfig: (handle: string, content: string, options?: InvokeOptions) => __TAURI_INVOKE<RemoteReviewResult>("review_remote_config", { handle, content }, options),
 	saveRemoteConfig: (reviewId: string, confirmed: boolean, options?: InvokeOptions) => __TAURI_INVOKE<RemoteSaveResult>("save_remote_config", { reviewId, confirmed }, options),
 	verifyRemoteConfig: (handle: string, options?: InvokeOptions) => __TAURI_INVOKE<RemoteOpenResult>("verify_remote_config", { handle }, options),
+	listClaudeDesktopQuotaProfiles: (options?: InvokeOptions) => __TAURI_INVOKE<DesktopQuotaProfile_Serialize[]>("list_claude_desktop_quota_profiles", undefined, options),
+	createClaudeDesktopQuotaProfile: (options?: InvokeOptions) => __TAURI_INVOKE<DesktopQuotaProfile_Serialize>("create_claude_desktop_quota_profile", undefined, options),
+	openClaudeDesktopQuotaLogin: (profileId: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("open_claude_desktop_quota_login", { profileId }, options),
+	linkClaudeDesktopQuotaAccount: (profileId: string, options?: InvokeOptions) => __TAURI_INVOKE<DesktopQuotaProfile_Serialize>("link_claude_desktop_quota_account", { profileId }, options),
+	refreshClaudeDesktopQuota: (profileId: string, options?: InvokeOptions) => __TAURI_INVOKE<DesktopQuotaRefresh_Serialize>("refresh_claude_desktop_quota", { profileId }, options),
 	listClaudeAccounts: (options?: InvokeOptions) => __TAURI_INVOKE<ClaudeAccount[]>("list_claude_accounts", undefined, options),
 	createClaudeAccount: (displayName: string, options?: InvokeOptions) => __TAURI_INVOKE<ClaudeAccount>("create_claude_account", { displayName }, options),
 	startClaudeAccountLogin: (profileId: string, options?: InvokeOptions) => __TAURI_INVOKE<AccountStatus_Serialize>("start_claude_account_login", { profileId }, options),
@@ -142,6 +147,87 @@ export type CoreError = "RemoteDestinationChanged" | "RemoteUnconfirmed" | "Prot
 ({ NotFound: {
 	target: string,
 } }) & { DuplicateProject?: never; InvalidPath?: never; Io?: never; IoError?: never; PathNotAllowed?: never; PermissionDenied?: never; Serialization?: never; SshError?: never; SyntaxError?: never };
+
+export type DesktopQuotaAccount = {
+	display_name: string,
+};
+
+export type DesktopQuotaError = "desktop_running" | "unauthenticated" | "source_unavailable" | "source_incompatible" | "identity_mismatch" | "rate_limited" | "not_linked" | "storage_unavailable" | "duplicate_account" | "profile_not_found";
+
+/**  Persisted profile registry. The default slot keeps the original state location. */
+export type DesktopQuotaProfile = DesktopQuotaProfile_Serialize | DesktopQuotaProfile_Deserialize;
+
+/**  Persisted profile registry. The default slot keeps the original state location. */
+export type DesktopQuotaProfile_Deserialize = {
+	id: string,
+	is_default: boolean,
+	state: DesktopQuotaState_Deserialize,
+};
+
+/**  Persisted profile registry. The default slot keeps the original state location. */
+export type DesktopQuotaProfile_Serialize = {
+	id: string,
+	is_default: boolean,
+	state: DesktopQuotaState_Serialize,
+};
+
+export type DesktopQuotaReading = DesktopQuotaReading_Serialize | DesktopQuotaReading_Deserialize;
+
+export type DesktopQuotaReading_Deserialize = {
+	collected_at: string,
+	five_hour?: DesktopQuotaWindow_Deserialize | null,
+	seven_day?: DesktopQuotaWindow_Deserialize | null,
+};
+
+export type DesktopQuotaReading_Serialize = {
+	collected_at: string,
+	five_hour: DesktopQuotaWindow_Serialize | null,
+	seven_day: DesktopQuotaWindow_Serialize | null,
+};
+
+export type DesktopQuotaRefresh = DesktopQuotaRefresh_Serialize | DesktopQuotaRefresh_Deserialize;
+
+export type DesktopQuotaRefreshStatus = "updated" | "failed" | "in_progress" | "wait";
+
+export type DesktopQuotaRefresh_Deserialize = {
+	status: DesktopQuotaRefreshStatus,
+	state: DesktopQuotaState_Deserialize,
+	retry_after_seconds?: number | null,
+};
+
+export type DesktopQuotaRefresh_Serialize = {
+	status: DesktopQuotaRefreshStatus,
+	state: DesktopQuotaState_Serialize,
+	retry_after_seconds: number | null,
+};
+
+export type DesktopQuotaState = DesktopQuotaState_Serialize | DesktopQuotaState_Deserialize;
+
+export type DesktopQuotaState_Deserialize = {
+	account?: DesktopQuotaAccount | null,
+	last_attempt_at?: string | null,
+	last_success?: DesktopQuotaReading_Deserialize | null,
+	error?: DesktopQuotaError | null,
+};
+
+export type DesktopQuotaState_Serialize = {
+	account: DesktopQuotaAccount | null,
+	last_attempt_at: string | null,
+	last_success: DesktopQuotaReading_Serialize | null,
+	error: DesktopQuotaError | null,
+};
+
+export type DesktopQuotaWindow = DesktopQuotaWindow_Serialize | DesktopQuotaWindow_Deserialize;
+
+export type DesktopQuotaWindow_Deserialize = {
+	utilization?: number | null,
+	resets_at?: string | null,
+};
+
+export type DesktopQuotaWindow_Serialize = {
+	utilization: number | null,
+	resets_at: string | null,
+};
 
 export type LibraryItem = LibraryItem_Serialize | LibraryItem_Deserialize;
 

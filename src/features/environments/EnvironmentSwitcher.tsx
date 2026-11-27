@@ -187,8 +187,7 @@ export function EnvironmentSwitcher({ children }: { children: ReactNode }) {
 							</h1>
 							<p className="text-sm text-muted-foreground">
 								SSH · Agent detection checks executables in the non-interactive
-								PATH; it does not test login to an agent or discover
-								installations outside PATH.
+								PATH and in ~/.local/bin. Agent sign-in is not checked.
 							</p>
 						</div>
 						<Button

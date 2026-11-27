@@ -245,6 +245,24 @@ fn real_openssh_alias_and_manual_auth_identity_and_host_key_failures() {
     fs::remove_file(claude).unwrap();
     let absent = transport.inventory(&alias).unwrap();
     assert!(!absent.claude && !absent.codex);
+    let local_bin = root.join(".local/bin");
+    fs::create_dir_all(&local_bin).unwrap();
+    let local_claude = local_bin.join("claude");
+    let local_codex = local_bin.join("codex");
+    for path in [&local_claude, &local_codex] {
+        fs::write(
+            path,
+            format!("#!/bin/sh\nprintf executed > '{}'\n", marker.display()),
+        )
+        .unwrap();
+        fs::set_permissions(path, fs::Permissions::from_mode(0o700)).unwrap();
+    }
+    let outside_path = transport.inventory(&alias).unwrap();
+    assert!(outside_path.claude && outside_path.codex);
+    assert!(!marker.exists(), "inventory must not execute agents");
+    fs::set_permissions(&local_codex, fs::Permissions::from_mode(0o600)).unwrap();
+    let not_executable = transport.inventory(&alias).unwrap();
+    assert!(not_executable.claude && !not_executable.codex);
     let empty = root.join("empty_known_hosts");
     fs::write(&empty, "").unwrap();
     fs::write(&config, make_config(&client_key, &empty)).unwrap();

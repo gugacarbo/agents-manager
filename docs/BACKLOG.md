@@ -16,6 +16,7 @@ never ignored in silence.
 | 0006 | Usar OpenSSH no backend desktop para ambientes remotos | 2026-11-27 | in use |
 | 0007 | Separar a escrita remota segura da persistência local | 2026-11-27 | in use |
 | 0008 | Isolar a autenticacao do Claude Code por perfil | 2026-11-27 | in use |
+| 0009 | Consultar a cota da conta ativa do Claude Desktop | 2026-11-27 | in use |
 
 ## Spec Reservations
 

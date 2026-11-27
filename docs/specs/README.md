@@ -10,4 +10,4 @@
 | [SPEC-0004](0004-cadastrar-e-inspecionar-ambientes-ssh.md) | Cadastrar e inspecionar ambientes SSH | accepted |
 | [SPEC-0005](0005-editar-configuracoes-globais-de-agentes-via-ssh.md) | Editar configurações globais de agentes via SSH | accepted |
 | [SPEC-0006](0006-cadastrar-contas-do-claude-code-em-perfis-isolados.md) | Cadastrar contas do Claude Code em perfis isolados | accepted |
-| [SPEC-0007](0007-monitorar-cotas-por-conta-do-claude-code.md) | Monitorar cotas por conta do Claude Code | draft |
+| [SPEC-0007](0007-monitorar-cotas-por-conta-do-claude-code.md) | Monitorar cotas de várias contas do Claude Desktop | accepted |

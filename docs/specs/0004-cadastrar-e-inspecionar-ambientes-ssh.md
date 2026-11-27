@@ -27,20 +27,20 @@ esse inventário com o desktop. Esta entrega é utilizável sem o editor remoto.
   guarda senhas, passphrases ou chaves privadas. Autenticação interativa e aprovação de novas chaves
   de servidor acontecem fora do aplicativo, no OpenSSH.
 - Detectado significa que `claude` ou `codex` está disponível como executável no `PATH` da sessão
-  SSH não interativa; não prova login, funcionamento ou ausência de instalação fora do `PATH`. A
-  descoberta não executa os agentes.
+  SSH não interativa ou em `~/.local/bin` na conta remota. A descoberta não executa os agentes e não
+  verifica login, funcionamento ou instalação em outros diretórios.
 - Resultados pertencem ao ambiente consultado. Alterar a conexão ou trocar de ambiente invalida
   resultados pendentes desse contexto. O inventário local existente não muda.
 
 ## Edge cases
 
-| #   | Quando                                                                                  | O sistema deve                                                                                      |
-| --- | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| 1   | Alias ou cadastro manual válidos                                                        | Testar os dois formatos, mostrar host, conta e porta efetivos e manter o cadastro ao reabrir o app. |
-| 2   | Campos faltantes, porta fora de 1–65535 ou entrada interpretável como opção SSH         | Recusar antes de iniciar a conexão.                                                                 |
-| 3   | Cliente indisponível, autenticação recusada, chave desconhecida ou alterada, ou timeout | Mostrar falha sem aceitar chaves automaticamente nem marcar os agentes como ausentes.               |
-| 4   | Um ou ambos os executáveis não estão no `PATH`, ou a consulta falha                     | Mostrar o estado de cada agente e o limite da descoberta; falha de consulta não é ausência.         |
-| 5   | O ambiente é trocado, alterado ou removido durante o carregamento                       | Descartar resposta antiga; se o ambiente ativo for removido, voltar explicitamente para `Local`.    |
+| #   | Quando                                                                                    | O sistema deve                                                                                      |
+| --- | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| 1   | Alias ou cadastro manual válidos                                                          | Testar os dois formatos, mostrar host, conta e porta efetivos e manter o cadastro ao reabrir o app. |
+| 2   | Campos faltantes, porta fora de 1–65535 ou entrada interpretável como opção SSH           | Recusar antes de iniciar a conexão.                                                                 |
+| 3   | Cliente indisponível, autenticação recusada, chave desconhecida ou alterada, ou timeout   | Mostrar falha sem aceitar chaves automaticamente nem marcar os agentes como ausentes.               |
+| 4   | Um ou ambos os executáveis não estão no `PATH` nem em `~/.local/bin`, ou a consulta falha | Mostrar o estado de cada agente e o limite da descoberta; falha de consulta não é ausência.         |
+| 5   | O ambiente é trocado, alterado ou removido durante o carregamento                         | Descartar resposta antiga; se o ambiente ativo for removido, voltar explicitamente para `Local`.    |
 
 ## Out of scope
 
