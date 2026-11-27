@@ -42,7 +42,7 @@ jobs:
         run: bun run test:ts
 
       - name: Frontend production build
-        run: bun run build
+        run: bun run build:web
 
   e2e:
     name: Playwright E2E

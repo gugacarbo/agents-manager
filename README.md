@@ -32,14 +32,14 @@ sudo apt update && sudo apt install -y \
 
 ```bash
 bun install
-bun run dev       # Standalone Vite frontend (http://localhost:1420)
-bun run tauri dev # Full Tauri v2 desktop app with hot-reload
+bun run dev     # Full Tauri v2 desktop app + Vite with hot-reload
+bun run dev:web # Standalone Vite frontend (http://localhost:1420)
 ```
 
-To build the desktop bundle locally:
+To build the complete desktop bundle locally:
 
 ```bash
-bun run tauri build
+bun run build
 ```
 
 ## Validation
@@ -50,8 +50,8 @@ bun run check              # Biome + tsc --noEmit + cargo fmt --check + cargo cl
 bun run format:check       # Prettier on Markdown, YAML, and shell scripts
 bun run spell              # CSpell (en, pt_BR)
 bun run knip               # Unused files, exports, and dependencies
-bun run test               # Vitest + cargo test --workspace
-bun run build              # Vite production build
+bun run test               # Vitest + cargo test --workspace (parallel)
+bun run build:web          # Vite production build
 bun run test:e2e           # Playwright E2E tests (Chromium)
 ```
 

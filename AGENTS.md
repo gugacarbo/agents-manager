@@ -34,8 +34,8 @@ Linux-first na v1, com arquitetura de adapters desacoplada para futura distribui
 
 ```bash
 bun install
-bun run dev       # frontend Vite isolado (http://localhost:1420)
-bun run tauri dev # app desktop Tauri v2 + hot-reload
+bun run dev     # app desktop Tauri v2 + Vite com hot-reload
+bun run dev:web # frontend Vite isolado (http://localhost:1420)
 ```
 
 ## How to validate (global repo DoD)
@@ -46,14 +46,14 @@ bun run check              # exit 0 — Biome + tsc --noEmit + cargo fmt --check
 bun run format:check       # exit 0 — Prettier em md/yml/yaml/sh
 bun run spell              # exit 0 — CSpell (en, pt_BR)
 bun run knip               # exit 0 — detecção de código/deps não usados
-bun run test               # exit 0 — Vitest + cargo test --workspace
-bun run build              # exit 0 — Vite production build
+bun run test               # exit 0 — Vitest + cargo test --workspace em paralelo
+bun run build:web          # exit 0 — Vite production build
 bun run test:e2e           # exit 0 — Playwright E2E (Chromium)
 ```
 
 ## How to deploy
 
-- Empacotamento desktop local via `bun run tauri build` (gera binário/pacotes em
+- Empacotamento desktop local completo via `bun run build` (`tauri build`; gera binário/pacotes em
   `src-tauri/target/release/bundle/`).
 - Sem deploy remoto ou distribuição automática na v1.
 
