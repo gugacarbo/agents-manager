@@ -6,12 +6,18 @@ import {
 	syntaxHighlighting,
 } from "@codemirror/language";
 import { MergeView } from "@codemirror/merge";
-import { EditorState, type Extension } from "@codemirror/state";
+import {
+	Annotation,
+	EditorState,
+	type Extension,
+	Transaction,
+} from "@codemirror/state";
 import { EditorView, keymap, lineNumbers } from "@codemirror/view";
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 
 type EditorLanguage = "json" | "markdown";
+const externalUpdate = Annotation.define<boolean>();
 
 const darkEditorTheme = EditorView.theme(
 	{
@@ -64,7 +70,12 @@ export function CodeEditor({
 	const containerRef = useRef<HTMLDivElement | null>(null);
 	const viewRef = useRef<EditorView | null>(null);
 	const onChangeRef = useRef(onChange);
-	onChangeRef.current = onChange;
+	const valueRef = useRef(value);
+	valueRef.current = value;
+
+	useEffect(() => {
+		onChangeRef.current = onChange;
+	}, [onChange]);
 
 	useEffect(() => {
 		const parent = containerRef.current;
@@ -82,7 +93,12 @@ export function CodeEditor({
 			EditorView.contentAttributes.of({ "aria-label": ariaLabel }),
 			EditorState.readOnly.of(readOnly),
 			EditorView.updateListener.of((update) => {
-				if (update.docChanged) {
+				if (
+					update.docChanged &&
+					update.transactions.some(
+						(transaction) => !transaction.annotation(externalUpdate),
+					)
+				) {
 					onChangeRef.current?.(update.state.doc.toString());
 				}
 			}),
@@ -90,7 +106,7 @@ export function CodeEditor({
 
 		const view = new EditorView({
 			state: EditorState.create({
-				doc: value,
+				doc: valueRef.current,
 				extensions,
 			}),
 			parent,
@@ -102,7 +118,20 @@ export function CodeEditor({
 			view.destroy();
 			viewRef.current = null;
 		};
-	}, [ariaLabel, language, readOnly, value]);
+	}, [ariaLabel, language, readOnly]);
+
+	useEffect(() => {
+		const view = viewRef.current;
+		if (view && view.state.doc.toString() !== value) {
+			view.dispatch({
+				changes: { from: 0, to: view.state.doc.length, insert: value },
+				annotations: [
+					externalUpdate.of(true),
+					Transaction.addToHistory.of(false),
+				],
+			});
+		}
+	}, [value]);
 
 	return (
 		<div

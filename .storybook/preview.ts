@@ -1,6 +1,10 @@
 import type { Preview } from "@storybook/react-vite";
 import "../src/index.css";
 
+if (typeof document !== "undefined") {
+	document.documentElement.classList.add("dark");
+}
+
 const preview: Preview = {
 	parameters: {
 		controls: {

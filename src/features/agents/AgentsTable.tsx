@@ -1,96 +1,49 @@
-import {
-	createColumnHelper,
-	tableFeatures,
-	useTable,
-} from "@tanstack/react-table";
+import { Circle, CircleCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { AgentSummary } from "@/lib/schemas";
 
-const features = tableFeatures({});
-const columnHelper = createColumnHelper<typeof features, AgentSummary>();
-
-const columns = columnHelper.columns([
-	columnHelper.accessor("name", {
-		header: "Agent",
-		cell: (info) => (
-			<span className="font-medium text-foreground">{info.getValue()}</span>
-		),
-	}),
-	columnHelper.accessor("kind", {
-		header: "Adapter Key",
-		cell: (info) => (
-			<code className="rounded bg-secondary px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
-				{info.getValue()}
-			</code>
-		),
-	}),
-	columnHelper.accessor("detected", {
-		header: "Status",
-		cell: (info) => {
-			const detected = info.getValue();
-			return (
-				<Badge variant={detected ? "success" : "muted"}>
-					{detected ? "Detected" : "Not detected"}
-				</Badge>
-			);
-		},
-	}),
-	columnHelper.accessor("configPath", {
-		header: "Config Path",
-		cell: (info) => (
-			<span className="font-mono text-xs text-muted-foreground">
-				{info.getValue() ?? "—"}
-			</span>
-		),
-	}),
-]);
-
-export function AgentsTable({ agents }: { agents: AgentSummary[] }) {
-	const table = useTable({
-		features,
-		columns,
-		data: agents,
-	});
-
+export function AgentInventory({ agents }: { agents: AgentSummary[] }) {
 	return (
-		<div className="overflow-x-auto rounded-xl border border-border bg-card">
-			<table className="w-full text-left text-sm">
-				<thead className="border-b border-border bg-slate-900/60 text-xs uppercase tracking-wider text-muted-foreground">
-					{table.getHeaderGroups().map((group) => (
-						<tr key={group.id}>
-							{group.headers.map((header) => (
-								<th key={header.id} className="px-4 py-3 font-medium">
-									{header.isPlaceholder ? null : (
-										<table.FlexRender header={header} />
-									)}
-								</th>
-							))}
-						</tr>
-					))}
-				</thead>
-				<tbody className="divide-y divide-border">
-					{table.getRowModel().rows.length === 0 ? (
-						<tr>
-							<td
-								colSpan={columns.length}
-								className="px-4 py-6 text-center text-muted-foreground"
-							>
-								No agents match the current filter.
-							</td>
-						</tr>
-					) : (
-						table.getRowModel().rows.map((row) => (
-							<tr key={row.id} className="hover:bg-slate-900/40">
-								{row.getAllCells().map((cell) => (
-									<td key={cell.id} className="px-4 py-3">
-										<table.FlexRender cell={cell} />
-									</td>
-								))}
-							</tr>
-						))
-					)}
-				</tbody>
-			</table>
+		<div className="overflow-hidden rounded-lg border border-border bg-card">
+			<div
+				aria-hidden="true"
+				className="hidden agent-inventory-grid gap-4 border-b border-border bg-background/40 px-4 py-2.5 text-xs font-medium text-muted-foreground lg:grid"
+			>
+				<span>Agent</span>
+				<span>Detection</span>
+				<span>Configuration folder</span>
+			</div>
+			<ul aria-label="Agent inventory" className="divide-y divide-border">
+				{agents.map((agent) => {
+					const Icon = agent.detected ? CircleCheck : Circle;
+					return (
+						<li
+							key={agent.kind}
+							className="agent-inventory-grid grid items-start gap-x-4 gap-y-2 px-4 py-3 text-sm lg:items-center"
+						>
+							<span className="font-medium wrap-anywhere">{agent.name}</span>
+							<span>
+								<Badge
+									variant={agent.detected ? "success" : "muted"}
+									className="gap-1.5 whitespace-nowrap"
+								>
+									<Icon className="size-3" aria-hidden="true" />
+									{agent.detected ? "Detected" : "Not detected"}
+								</Badge>
+							</span>
+							<div className="col-span-2 min-w-0 text-xs text-muted-foreground lg:col-span-1">
+								{agent.configPath ? (
+									<code className="font-mono select-text wrap-anywhere">
+										{agent.configPath}
+									</code>
+								) : (
+									"Configuration folder unavailable"
+								)}
+							</div>
+						</li>
+					);
+				})}
+			</ul>
 		</div>
 	);
 }

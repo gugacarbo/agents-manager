@@ -1,0 +1,130 @@
+import { useQuery } from "@tanstack/react-query";
+import { RefreshCw } from "lucide-react";
+import { useRef, useState } from "react";
+import {
+	EmptyState,
+	ErrorState,
+	LoadingState,
+	PageHeader,
+} from "@/components/patterns";
+import { Button } from "@/components/ui/button";
+import { listAgents } from "@/lib/agents";
+import { AgentFilterForm, type AgentFilterValues } from "./AgentFilterForm";
+import { AgentInventory } from "./AgentsTable";
+
+const initialFilters: AgentFilterValues = { query: "", status: "all" };
+export const agentsQueryKey = ["agents"] as const;
+
+export function AgentsPage() {
+	const { data, isFetching, isError, error, refetch } = useQuery({
+		queryKey: agentsQueryKey,
+		queryFn: listAgents,
+	});
+	const [filter, setFilter] = useState(initialFilters);
+	const searchRef = useRef<HTMLInputElement>(null);
+	const query = filter.query.trim().toLowerCase();
+	const hasFilters = query !== "" || filter.status !== "all";
+	const matches = data?.filter((agent) => {
+		if (filter.status === "detected" && !agent.detected) return false;
+		if (filter.status === "missing" && agent.detected) return false;
+		return (
+			!query ||
+			agent.name.toLowerCase().includes(query) ||
+			(agent.configPath ?? "").toLowerCase().includes(query)
+		);
+	});
+
+	function refresh() {
+		void refetch({ cancelRefetch: false });
+	}
+
+	return (
+		<section aria-labelledby="agents-title" className="space-y-5">
+			<PageHeader
+				title="Local agents"
+				titleId="agents-title"
+				description="Find configuration folders for supported coding agents."
+				actions={
+					<Button
+						variant="outline"
+						size="sm"
+						disabled={isFetching}
+						onClick={refresh}
+					>
+						<RefreshCw className="size-4" aria-hidden="true" />
+						{data && isFetching ? "Refreshing…" : "Refresh"}
+					</Button>
+				}
+			/>
+			{!data && !isError && (
+				<LoadingState
+					message="Checking local configuration folders…"
+					className="min-h-44 items-start"
+				/>
+			)}
+			{isError && (
+				<ErrorState
+					title={
+						data
+							? "Could not refresh. Showing previous results."
+							: "Could not check local configuration folders."
+					}
+					message={error.message}
+					action={
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={refresh}
+							disabled={isFetching}
+						>
+							Try again
+						</Button>
+					}
+				/>
+			)}
+
+			{data && matches && (
+				<div className="space-y-3">
+					<AgentFilterForm
+						values={filter}
+						onFilterChange={setFilter}
+						searchRef={searchRef}
+					/>
+					<p role="status" className="text-xs text-muted-foreground">
+						{isFetching && <span className="sr-only">Refreshing… </span>}
+						<span>
+							{data.filter((agent) => agent.detected).length} of {data.length}{" "}
+							configurations detected
+						</span>
+						{hasFilters && ` · ${matches.length} matching`}
+					</p>
+					{matches.length > 0 ? (
+						<AgentInventory agents={matches} />
+					) : (
+						<EmptyState
+							title={
+								hasFilters
+									? "No agents match your filters."
+									: "No supported agents were returned."
+							}
+							action={
+								hasFilters && (
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={() => {
+											setFilter(initialFilters);
+											searchRef.current?.focus();
+										}}
+									>
+										Clear filters
+									</Button>
+								)
+							}
+						/>
+					)}
+				</div>
+			)}
+		</section>
+	);
+}

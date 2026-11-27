@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme inline {
 	--color-background: var(--background);
 	--color-foreground: var(--foreground);
@@ -20,6 +22,8 @@
 	--color-border: var(--border);
 	--color-input: var(--input);
 	--color-ring: var(--ring);
+	--color-selection: var(--selection);
+	--color-selection-foreground: var(--selection-foreground);
 	--radius-sm: calc(var(--radius) - 4px);
 	--radius-md: calc(var(--radius) - 2px);
 	--radius-lg: var(--radius);
@@ -27,6 +31,30 @@
 
 :root {
 	--radius: 0.625rem;
+	--background: #f8fafc;
+	--foreground: #0f172a;
+	--card: #ffffff;
+	--card-foreground: #0f172a;
+	--popover: #ffffff;
+	--popover-foreground: #0f172a;
+	--primary: #0f172a;
+	--primary-foreground: #f8fafc;
+	--secondary: #f1f5f9;
+	--secondary-foreground: #0f172a;
+	--muted: #f1f5f9;
+	--muted-foreground: #475569;
+	--accent: #e2e8f0;
+	--accent-foreground: #0f172a;
+	--destructive: #dc2626;
+	--destructive-foreground: #f8fafc;
+	--border: #cbd5e1;
+	--input: #cbd5e1;
+	--ring: #64748b;
+	--selection: #dbeafe;
+	--selection-foreground: #0f172a;
+}
+
+.dark {
 	--background: #020617;
 	--foreground: #f8fafc;
 	--card: #0f172a;
@@ -45,7 +73,9 @@
 	--destructive-foreground: #f8fafc;
 	--border: #1e293b;
 	--input: #1e293b;
-	--ring: #64748b;
+	--ring: #60a5fa;
+	--selection: #1e3a5f;
+	--selection-foreground: #f8fafc;
 }
 
 body {
@@ -54,4 +84,55 @@ body {
 	font-family:
 		ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
 		Roboto, sans-serif;
+}
+
+:root {
+	color-scheme: light;
+}
+.dark {
+	color-scheme: dark;
+}
+
+:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 2px;
+}
+
+.agent-inventory-grid {
+	grid-template-columns: minmax(0, 1fr) auto;
+}
+@media (min-width: 64rem) {
+	.agent-inventory-grid {
+		grid-template-columns: minmax(0, 1fr) 10rem minmax(0, 2fr);
+	}
+}
+
+.demo-editor-height {
+	height: clamp(16rem, 55vh, 32rem);
+}
+.diff-added {
+	background: #dcfce7;
+	color: #14532d;
+}
+.diff-removed {
+	background: #ffe4e6;
+	color: #881337;
+}
+.dark .diff-added {
+	background: #123428;
+	color: #a7f3d0;
+}
+.dark .diff-removed {
+	background: #3f202d;
+	color: #fecdd3;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms;
+		animation-iteration-count: 1;
+		transition-duration: 0.01ms;
+	}
 }
