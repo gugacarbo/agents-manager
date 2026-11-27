@@ -9,7 +9,10 @@ import {
 	within,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import type { AccountStatus_Serialize, ClaudeAccount } from "@/bindings/tauri";
+import type {
+	AccountStatus_Serialize,
+	ClaudeAccount,
+} from "@/lib/claude-accounts";
 import { createAppRouter } from "@/router";
 
 const mockIPC: typeof tauriMockIPC = (callback, options) =>
@@ -36,7 +39,13 @@ function renderPage(path = "/accounts/claude") {
 	const router = createAppRouter(
 		createMemoryHistory({ initialEntries: [path] }),
 	);
-	const client = new QueryClient();
+	const client = new QueryClient({
+		defaultOptions: {
+			queries: {
+				retry: false,
+			},
+		},
+	});
 	return render(
 		<QueryClientProvider client={client}>
 			<RouterProvider router={router} />
@@ -116,7 +125,12 @@ describe("Claude Code account profiles", () => {
 		expect(
 			screen.queryByRole("combobox", { name: "Environment" }),
 		).not.toBeInTheDocument();
-		expect(screen.getByRole("status")).toHaveTextContent(/loading profiles/i);
+		const localProfiles = screen.getByRole("region", {
+			name: "Local profiles",
+		});
+		expect(within(localProfiles).getByRole("status")).toHaveTextContent(
+			/loading profiles/i,
+		);
 		listed.resolve(accounts);
 		for (const name of ["Personal", "Work"]) {
 			const row = await createProfile(name);

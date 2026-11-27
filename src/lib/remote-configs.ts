@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { commands } from "@/bindings/tauri";
+import { formatCoreError } from "@/lib/ipc-errors";
 
 const span = z.object({
 	startByte: z.number(),
@@ -57,15 +58,7 @@ export const remoteConfigs = {
 	message: (error: unknown) => {
 		if (error === "ExternalConflict")
 			return "The remote file changed since it was opened.";
-		if (error === "RemoteDestinationChanged")
-			return "The authenticated destination changed. Open the file again.";
-		if (error === "RemoteUnconfirmed")
-			return "The remote save could not be confirmed.";
-		if (error === "ProtectedField")
-			return "Project settings in this shared file cannot be changed remotely.";
-		if (error instanceof Error) return error.message;
-		if (typeof error === "string") return error;
-		return JSON.stringify(error);
+		return formatCoreError(error).message;
 	},
 };
 

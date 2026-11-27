@@ -1,4 +1,4 @@
-use agents_manager_core::claude_accounts::{
+use agents_manager_claude_accounts::accounts::{
     AccountError, AccountStatus, ClaudeAccount, ClaudeAccounts, ClaudePrograms, STORE_NAME,
 };
 use std::{path::PathBuf, sync::OnceLock};

@@ -17,6 +17,9 @@ never ignored in silence.
 | 0007 | Separar a escrita remota segura da persistência local | 2026-11-27 | in use |
 | 0008 | Isolar a autenticacao do Claude Code por perfil | 2026-11-27 | in use |
 | 0009 | Consultar a cota da conta ativa do Claude Desktop | 2026-11-27 | in use |
+| 0010 | Sincronizar configurações do Claude Desktop por projeção explícita | 2026-11-27 | in use |
+| 0011 | Importar sessões do Claude Code entre perfis do Desktop | 2026-11-27 | in use |
+| 0012 | separar-infraestrutura-ssh-e-contas-claude-em-crates-dedicados | 2026-11-27 | in use |
 
 ## Spec Reservations
 
@@ -29,3 +32,6 @@ never ignored in silence.
 | 0005 | Editar configurações globais de agentes via SSH | 2026-11-27 | in use |
 | 0006 | Cadastrar contas do Claude Code em perfis isolados | 2026-11-27 | in use |
 | 0007 | Monitorar cotas por conta do Claude Code | 2026-11-27 | in use |
+| 0008 | Trocar contas do Claude Desktop por perfil isolado | 2026-11-27 | in use |
+| 0009 | Importar conversas locais e SSH ao trocar contas do Claude Desktop | 2026-11-27 | in use |
+| 0010 | Aplicar preferências de interface e MCPs entre perfis do Claude Desktop | 2026-11-27 | in use |

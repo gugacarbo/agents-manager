@@ -1,6 +1,5 @@
-import { useRef } from "react";
 import { CodeEditor, DiffViewer } from "@/components/CodeEditor";
-import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ConfigDocument } from "@/lib/configs";
 import { maskedConfig } from "@/lib/editor-secrets";
 import { StructuredEditor, type StructuredPatch } from "./StructuredEditor";
@@ -41,44 +40,26 @@ export function ConfigPanels({
 	setStructured,
 	setMaskedDraft,
 }: Props) {
-	const editorTab = useRef<HTMLButtonElement>(null);
-	const diffTab = useRef<HTMLButtonElement>(null);
-	function tabKey(event: React.KeyboardEvent<HTMLButtonElement>) {
-		let next: "editor" | "diff";
-		if (event.key === "Home") next = "editor";
-		else if (event.key === "End") next = "diff";
-		else if (event.key === "ArrowRight" || event.key === "ArrowLeft")
-			next = tab === "editor" ? "diff" : "editor";
-		else return;
-		event.preventDefault();
-		setTab(next);
-		(next === "editor" ? editorTab : diffTab).current?.focus();
-	}
 	return (
 		<>
-			<div
-				role="tablist"
-				aria-label="Configuration views"
-				className="flex gap-2 border-b border-border pb-2 lg:hidden"
+			<Tabs
+				value={tab}
+				onValueChange={(value) => {
+					if (value === "editor" || value === "diff") {
+						setTab(value);
+					}
+				}}
+				className="lg:hidden"
 			>
-				{(["editor", "diff"] as const).map((panel) => (
-					<Button
-						key={panel}
-						ref={panel === "editor" ? editorTab : diffTab}
-						role="tab"
-						id={`config-tab-${panel}`}
-						aria-controls={`config-panel-${panel}`}
-						aria-selected={tab === panel}
-						tabIndex={tab === panel ? 0 : -1}
-						variant="ghost"
-						onClick={() => setTab(panel)}
-						onKeyDown={tabKey}
-						className="aria-selected:bg-selection aria-selected:text-selection-foreground"
-					>
-						{panel === "editor" ? "Editor" : "Diff"}
-					</Button>
-				))}
-			</div>
+				<TabsList aria-label="Configuration views">
+					<TabsTrigger id="config-tab-editor" value="editor">
+						Editor
+					</TabsTrigger>
+					<TabsTrigger id="config-tab-diff" value="diff">
+						Diff
+					</TabsTrigger>
+				</TabsList>
+			</Tabs>
 			<div className="grid gap-4 lg:grid-cols-2">
 				<div
 					id="config-panel-editor"

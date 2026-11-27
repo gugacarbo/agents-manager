@@ -1,6 +1,10 @@
+#[cfg(target_os = "linux")]
+mod claude_desktop_launcher;
 pub mod commands;
+mod preferences_state;
 mod remote_state;
 mod sync_preview;
+mod tray;
 mod watcher;
 
 use std::path::{Path, PathBuf};
@@ -40,7 +44,9 @@ fn specta_builder<R: tauri::Runtime>() -> Builder<R> {
                 commands::remote::open_remote_config,
                 commands::remote::review_remote_config,
                 commands::remote::save_remote_config,
-                commands::remote::verify_remote_config
+                commands::remote::verify_remote_config,
+                commands::get_app_preferences,
+                commands::set_app_preferences
                 $(,$extra::$module::$command)*
             ])
         };
@@ -50,6 +56,7 @@ fn specta_builder<R: tauri::Runtime>() -> Builder<R> {
         commands::claude_desktop_quotas::list_claude_desktop_quota_profiles,
         commands::claude_desktop_quotas::create_claude_desktop_quota_profile,
         commands::claude_desktop_quotas::open_claude_desktop_quota_login,
+        commands::claude_desktop_quotas::open_claude_desktop_quota_profile,
         commands::claude_desktop_quotas::link_claude_desktop_quota_account,
         commands::claude_desktop_quotas::refresh_claude_desktop_quota,
         commands::claude_accounts::list_claude_accounts,
@@ -61,15 +68,28 @@ fn specta_builder<R: tauri::Runtime>() -> Builder<R> {
     build!()
 }
 
+#[cfg(all(test, target_os = "linux"))]
 fn with_ipc_handler<R: tauri::Runtime>(
     app: tauri::Builder<R>,
     specta: &Builder<R>,
+) -> tauri::Builder<R> {
+    configure_app(app, specta, false)
+}
+
+fn configure_app<R: tauri::Runtime>(
+    app: tauri::Builder<R>,
+    specta: &Builder<R>,
+    enable_tray: bool,
 ) -> tauri::Builder<R> {
     use tauri::{Emitter, Manager};
     app.manage(watcher::WatchState::default())
         .manage(sync_preview::PreviewState::default())
         .manage(remote_state::RemoteState::default())
-        .setup(|app| {
+        .manage(preferences_state::PreferencesState::new(
+            commands::load_initial_minimize_to_tray(),
+        ))
+        .on_window_event(tray::handle_window_event)
+        .setup(move |app| {
             let handle = app.handle().clone();
             let state = app.state::<watcher::WatchState>();
             *state.emitter.lock().map_err(|err| err.to_string())? =
@@ -89,6 +109,9 @@ fn with_ipc_handler<R: tauri::Runtime>(
                         },
                     );
                 }));
+            if enable_tray {
+                tray::setup_tray(app)?;
+            }
             Ok(())
         })
         .invoke_handler(specta.invoke_handler())
@@ -140,7 +163,7 @@ pub fn run() {
         eprintln!("failed to export TypeScript bindings: {err}");
     }
 
-    with_ipc_handler(tauri::Builder::default(), &builder)
+    configure_app(tauri::Builder::default(), &builder, true)
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -164,6 +187,9 @@ mod tests {
         assert!(content.contains("testSshConnection"));
         assert!(content.contains("inspectSshEnvironment"));
         assert!(content.contains("listAgents"));
+        assert!(content.contains("getAppPreferences"));
+        assert!(content.contains("setAppPreferences"));
+        assert!(content.contains("AppPreferences"));
         assert!(content.contains("AgentSummary"));
         assert!(content.contains("CoreError"));
     }

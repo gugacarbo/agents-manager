@@ -28,11 +28,9 @@ pub enum CoreError {
     SyntaxError { message: String },
     #[error("file changed externally")]
     ExternalConflict,
-    #[error("I/O error: {message}")]
-    IoError { message: String },
     /// Filesystem or I/O operation failure.
     #[error("I/O error: {message}")]
-    Io { message: String },
+    IoError { message: String },
 
     /// Serialization or deserialization failure.
     #[error("serialization error: {message}")]

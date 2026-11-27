@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { commands } from "@/bindings/tauri";
+import { formatCoreError } from "@/lib/ipc-errors";
 import { agentKindSchema } from "@/lib/schemas";
 
 const category = z.enum(["mcps", "skills", "rules", "settings"]);
@@ -71,10 +72,5 @@ export const library = {
 		itemId: string,
 		targets: { selection: SyncSelection; expectedSha256: string | null }[],
 	) => commands.applySync({ itemId, targets }),
-	message: (error: unknown) =>
-		error instanceof Error
-			? error.message
-			: typeof error === "string"
-				? error
-				: JSON.stringify(error),
+	message: (error: unknown) => formatCoreError(error).message,
 };

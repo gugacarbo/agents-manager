@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { commands } from "@/bindings/tauri";
+import { formatCoreError } from "@/lib/ipc-errors";
 
 const projectSchema = z.object({
 	id: z.string(),
@@ -14,14 +15,5 @@ export const projects = {
 	register: async (path: string) =>
 		projectSchema.parse(await commands.registerProject(path)),
 	remove: (id: string) => commands.removeProject(id),
-	message: (error: unknown) => {
-		const duplicate = z
-			.object({ DuplicateProject: z.object({ root_path: z.string() }) })
-			.safeParse(error);
-		if (duplicate.success)
-			return `Project already registered: ${duplicate.data.DuplicateProject.root_path}`;
-		if (error instanceof Error) return error.message;
-		if (typeof error === "string") return error;
-		return JSON.stringify(error);
-	},
+	message: (error: unknown) => formatCoreError(error).message,
 };

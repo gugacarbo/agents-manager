@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect x="24" y="24" width="464" height="464" rx="112" fill="#171815" stroke="#36372F" stroke-width="10"/>
+  <path d="M 230.02 119.00 Q 256.00 104.00 281.98 119.00 L 361.66 165.00 Q 387.64 180.00 387.64 210.00 L 387.64 302.00 Q 387.64 332.00 361.66 347.00 L 281.98 393.00 Q 256.00 408.00 230.02 393.00 L 150.34 347.00 Q 124.36 332.00 124.36 302.00 L 124.36 210.00 Q 124.36 180.00 150.34 165.00 Z" fill="none" stroke="#84500B" stroke-width="22" stroke-linejoin="round" stroke-linecap="round"/>
+  <g stroke="#EAC17B" stroke-width="26" stroke-linecap="round">
+    <line x1="256" y1="256" x2="256.00" y2="111.50"/>
+    <line x1="256" y1="256" x2="381.14" y2="328.25"/>
+    <line x1="256" y1="256" x2="130.86" y2="328.25"/>
+  </g>
+  <circle cx="256.00" cy="111.50" r="32" fill="#EAC17B"/>
+  <circle cx="381.14" cy="328.25" r="32" fill="#EAC17B"/>
+  <circle cx="130.86" cy="328.25" r="32" fill="#EAC17B"/>
+  <circle cx="256" cy="256" r="46" fill="#EAC17B"/>
+  <circle cx="256" cy="256" r="18" fill="#171815"/>
+</svg>

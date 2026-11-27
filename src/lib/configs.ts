@@ -1,6 +1,7 @@
 import { listen } from "@tauri-apps/api/event";
 import { z } from "zod";
 import { commands } from "@/bindings/tauri";
+import { formatCoreError } from "@/lib/ipc-errors";
 import { agentKindSchema } from "@/lib/schemas";
 
 const entrySchema = z.object({
@@ -56,12 +57,7 @@ export const configs = {
 		}
 		return unlisten;
 	},
-	message: (error: unknown) =>
-		error instanceof Error
-			? error.message
-			: typeof error === "string"
-				? error
-				: JSON.stringify(error),
+	message: (error: unknown) => formatCoreError(error).message,
 };
 export function isExternalConflict(error: unknown) {
 	return (

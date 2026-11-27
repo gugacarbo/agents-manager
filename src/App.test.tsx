@@ -8,6 +8,7 @@ import {
 	waitFor,
 	within,
 } from "@testing-library/react";
+import { toast } from "sonner";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { CodeEditor } from "./components/CodeEditor";
@@ -30,6 +31,7 @@ function renderApp() {
 }
 
 afterEach(() => {
+	toast.dismiss();
 	cleanup();
 	clearMocks();
 	delete (window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
@@ -126,7 +128,7 @@ describe("App", () => {
 
 	it.each([
 		["Minimize window", "minimize"],
-		["Maximize or restore window", "toggle_maximize"],
+		["Maximize window", "toggle_maximize"],
 		["Close window", "close"],
 	])("routes %s to the current desktop window", async (name, command) => {
 		const windowCommands: unknown[][] = [];
@@ -147,6 +149,135 @@ describe("App", () => {
 		expect(windowCommands).toEqual([
 			[`plugin:window|${command}`, { label: "main" }],
 		]);
+	});
+
+	it("renders search followed by the preferences dropdown in the desktop toolbar and switches maximize to restore when expanded", async () => {
+		let maximized = false;
+		let fullscreen = false;
+		const windowCommands: unknown[][] = [];
+		mockWindows("main");
+		mockIPC((cmd, args) => {
+			if (cmd === "plugin:window|is_maximized") return maximized;
+			if (cmd === "plugin:window|is_fullscreen") return fullscreen;
+			if (cmd === "get_app_preferences") return { minimizeToTray: true };
+			if (
+				cmd === "plugin:window|toggle_maximize" ||
+				cmd === "plugin:window|set_fullscreen"
+			) {
+				windowCommands.push([cmd, args]);
+			}
+			return [];
+		});
+		renderApp();
+
+		const titleBar = await screen.findByTestId("desktop-title-bar");
+		const searchButton = within(titleBar).getByRole("button", {
+			name: /Search/i,
+		});
+		const prefsTrigger = within(titleBar).getByRole("button", {
+			name: "App preferences",
+		});
+		expect(
+			searchButton.compareDocumentPosition(prefsTrigger) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+
+		expect(
+			within(titleBar).getByRole("button", { name: "Maximize window" }),
+		).toBeInTheDocument();
+
+		fireEvent.pointerDown(prefsTrigger, { button: 0, ctrlKey: false });
+		const menu = await screen.findByRole("menu", {
+			name: "App preferences",
+		});
+		expect(
+			within(menu).getByRole("menuitem", { name: /Theme/i }),
+		).toBeInTheDocument();
+		expect(
+			within(menu).getByRole("menuitemcheckbox", {
+				name: /Run in background/i,
+			}),
+		).toHaveAttribute("aria-checked", "true");
+		fireEvent.keyDown(menu, { key: "Escape" });
+
+		maximized = true;
+		fireEvent.resize(window);
+		const restoreFromMax = await within(titleBar).findByRole("button", {
+			name: "Restore window",
+		});
+		fireEvent.click(restoreFromMax);
+
+		maximized = false;
+		fullscreen = true;
+		fireEvent.resize(window);
+		const restoreFromFullscreen = await within(titleBar).findByRole("button", {
+			name: "Restore window",
+		});
+		fireEvent.click(restoreFromFullscreen);
+
+		await waitFor(() =>
+			expect(windowCommands).toEqual([
+				["plugin:window|toggle_maximize", { label: "main" }],
+				["plugin:window|set_fullscreen", { label: "main", value: false }],
+			]),
+		);
+	});
+
+	it("hides the background execution menu item outside the desktop runtime", async () => {
+		renderApp();
+		await screen.findByRole("list", { name: "Agent inventory" });
+		fireEvent.pointerDown(
+			screen.getByRole("button", { name: "App preferences" }),
+			{ button: 0, ctrlKey: false },
+		);
+		const menu = await screen.findByRole("menu", {
+			name: "App preferences",
+		});
+		expect(
+			within(menu).getByRole("menuitem", { name: /Theme/i }),
+		).toBeInTheDocument();
+		expect(
+			within(menu).queryByRole("menuitemcheckbox", {
+				name: /Run in background/i,
+			}),
+		).not.toBeInTheDocument();
+	});
+
+	it("toggles minimize-to-tray preference via Tauri IPC in desktop mode", async () => {
+		let minimizeToTray = true;
+		const setCalls: unknown[] = [];
+		mockWindows("main");
+		mockIPC((cmd, args) => {
+			if (cmd === "get_app_preferences") {
+				return { minimizeToTray };
+			}
+			if (cmd === "set_app_preferences") {
+				setCalls.push(args);
+				const payload = args as { preferences: { minimizeToTray: boolean } };
+				minimizeToTray = payload.preferences.minimizeToTray;
+				return { minimizeToTray };
+			}
+			return [];
+		});
+		renderApp();
+
+		fireEvent.pointerDown(
+			await screen.findByRole("button", { name: "App preferences" }),
+			{ button: 0, ctrlKey: false },
+		);
+		const toggle = await screen.findByRole("menuitemcheckbox", {
+			name: /Run in background/i,
+		});
+		expect(toggle).toHaveAttribute("aria-checked", "true");
+
+		fireEvent.click(toggle);
+
+		await waitFor(() =>
+			expect(
+				screen.getByRole("menuitemcheckbox", { name: /Run in background/i }),
+			).toHaveAttribute("aria-checked", "false"),
+		);
+		expect(setCalls).toEqual([{ preferences: { minimizeToTray: false } }]);
 	});
 
 	it("lists each supported agent once when no configurations are detected", async () => {
@@ -179,7 +310,11 @@ describe("App", () => {
 		).toBeInTheDocument();
 		fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
 		expect(search).toHaveValue("");
-		expect(screen.getAllByRole("listitem")).toHaveLength(3);
+		expect(
+			within(
+				screen.getByRole("list", { name: "Agent inventory" }),
+			).getAllByRole("listitem"),
+		).toHaveLength(3);
 	});
 
 	it("renders detected agents and config paths when running inside Tauri IPC", async () => {
@@ -233,6 +368,7 @@ describe("App", () => {
 		let fail = true;
 		mockIPC((command) => {
 			if (command === "list_ssh_environments") return [];
+			if (command === "get_app_preferences") return { minimizeToTray: true };
 			if (fail) throw { NotFound: { target: "user home directory" } };
 			return [
 				{ kind: "codex", name: "Codex", detected: false, configPath: null },
@@ -258,6 +394,7 @@ describe("App", () => {
 		let firstCall = true;
 		mockIPC((command) => {
 			if (command === "list_ssh_environments") return [];
+			if (command === "get_app_preferences") return { minimizeToTray: true };
 			if (!firstCall) return refresh;
 			firstCall = false;
 			return [

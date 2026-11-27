@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { type ClaudeAccount, commands } from "@/bindings/tauri";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+	type ClaudeAccount,
+	getClaudeAccountStatus,
+	startClaudeAccountLogin,
+} from "@/lib/claude-accounts";
 import {
 	accountErrorMessage,
 	type ProfileStatus,
@@ -39,9 +43,7 @@ export function ClaudeAccountProfile({ profile }: { profile: ClaudeAccount }) {
 
 			try {
 				const request =
-					kind === "login"
-						? commands.startClaudeAccountLogin
-						: commands.getClaudeAccountStatus;
+					kind === "login" ? startClaudeAccountLogin : getClaudeAccountStatus;
 				let next = readStatus(await request(id), id);
 				// A previous visit may have started a terminal login that is still open.
 				// Serialize checks and never poll while this visit's start command is in flight.
@@ -49,7 +51,7 @@ export function ClaudeAccountProfile({ profile }: { profile: ClaudeAccount }) {
 					setStatus(next);
 					await new Promise<void>((resolve) => setTimeout(resolve, 500));
 					if (signal.aborted) return;
-					next = readStatus(await commands.getClaudeAccountStatus(id), id);
+					next = readStatus(await getClaudeAccountStatus(id), id);
 				}
 				if (!signal.aborted) setStatus(next);
 			} catch (error) {

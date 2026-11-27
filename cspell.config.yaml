@@ -80,6 +80,7 @@ words:
   - gtk
   - librsvg
   - libxdo
+  - libsecret
   - ayatana
   - appindicator
   - thiserror
@@ -99,3 +100,6 @@ words:
   - dotenv
   - smol
   - unlisten
+  - fullscreen
+  - prefs
+  - testid

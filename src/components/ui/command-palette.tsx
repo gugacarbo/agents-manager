@@ -1,7 +1,16 @@
-import { Command } from "cmdk";
-import { FileCode2, LayoutGrid, RefreshCw, Search, X } from "lucide-react";
+import { FileCode2, LayoutGrid, RefreshCw, Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+	CommandDialog,
+	CommandEmpty,
+	CommandGroup,
+	CommandInput,
+	CommandItem,
+	CommandList,
+	CommandSeparator,
+} from "@/components/ui/command";
+import { Kbd, KbdGroup } from "@/components/ui/kbd";
 
 interface CommandPaletteProps {
 	onNavigate: (path: "/" | "/demo") => void;
@@ -14,7 +23,6 @@ export function CommandPalette({
 	onNavigate,
 	onRefreshAgents,
 }: CommandPaletteProps) {
-	const dialog = useRef<HTMLDialogElement>(null);
 	const trigger = useRef<HTMLButtonElement>(null);
 	const input = useRef<HTMLInputElement>(null);
 	const [open, setOpen] = useState(false);
@@ -28,12 +36,7 @@ export function CommandPalette({
 			if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
 				event.preventDefault();
 				if (event.repeat) return;
-				if (dialog.current?.open) {
-					dialog.current.close();
-				} else {
-					dialog.current?.showModal();
-					setOpen(true);
-				}
+				setOpen((prev) => !prev);
 			}
 		}
 		window.addEventListener("keydown", handleKeyDown);
@@ -47,89 +50,68 @@ export function CommandPalette({
 				type="button"
 				variant="outline"
 				size="sm"
+				className="w-44 justify-between gap-2 bg-background/60 px-2.5 font-normal text-muted-foreground hover:text-foreground sm:w-56"
 				aria-haspopup="dialog"
 				aria-keyshortcuts="Control+K Meta+K"
 				onClick={() => {
 					trigger.current?.focus();
-					dialog.current?.showModal();
 					setOpen(true);
 				}}
 			>
-				<Search className="size-4" aria-hidden="true" />
-				Search
-				<kbd className="ml-2 hidden rounded border border-border bg-background px-1.5 font-mono text-xs text-muted-foreground sm:inline">
-					Ctrl+K
-				</kbd>
+				<span className="flex items-center gap-2">
+					<Search className="size-3.5" aria-hidden="true" />
+					<span>Search…</span>
+				</span>
+				<KbdGroup className="hidden sm:inline-flex">
+					<Kbd>Ctrl</Kbd>
+					<Kbd>K</Kbd>
+				</KbdGroup>
 			</Button>
-			<dialog
-				ref={dialog}
-				aria-label="Command palette"
-				className="fixed inset-x-0 top-[min(12vh,6rem)] mx-auto w-[min(32rem,calc(100%-2rem))] rounded-xl border border-input bg-popover p-0 text-popover-foreground shadow-2xl backdrop:bg-black/65"
-				onClose={() => {
-					if (!dialog.current?.open) setOpen(false);
-				}}
-			>
-				{open && (
-					<Command className="text-sm">
-						<div className="flex items-center gap-2 border-b border-border p-2">
-							<Command.Input
-								ref={input}
-								aria-label="Search commands"
-								placeholder="Search commands…"
-								className="min-w-0 flex-1 rounded-md bg-transparent px-3 py-2 placeholder:text-muted-foreground"
-							/>
-							<Button
-								variant="ghost"
-								size="sm"
-								aria-label="Close command palette"
-								onClick={() => dialog.current?.close()}
-							>
-								<X className="size-4" aria-hidden="true" />
-							</Button>
-						</div>
-						<Command.List className="max-h-[min(60vh,20rem)] overflow-y-auto p-2">
-							<Command.Empty className="px-3 py-5 text-muted-foreground">
-								No commands found.
-							</Command.Empty>
-							<Command.Item
-								className={itemStyle}
+			<CommandDialog open={open} onOpenChange={setOpen} title="Command palette">
+				<CommandInput
+					ref={input}
+					aria-label="Search commands"
+					placeholder="Search commands…"
+					onClose={() => setOpen(false)}
+				/>
+				<CommandList>
+					<CommandEmpty>No commands found.</CommandEmpty>
+					<CommandGroup heading="Navigation">
+						<CommandItem
+							onSelect={() => {
+								setOpen(false);
+								onNavigate("/");
+							}}
+						>
+							<LayoutGrid className="size-4" aria-hidden="true" />
+							Go to Agents
+						</CommandItem>
+						{showDemo && (
+							<CommandItem
 								onSelect={() => {
-									dialog.current?.close();
-									onNavigate("/");
+									setOpen(false);
+									onNavigate("/demo");
 								}}
 							>
-								<LayoutGrid className="size-4" aria-hidden="true" />
-								Go to Agents
-							</Command.Item>
-							{showDemo && (
-								<Command.Item
-									className={itemStyle}
-									onSelect={() => {
-										dialog.current?.close();
-										onNavigate("/demo");
-									}}
-								>
-									<FileCode2 className="size-4" aria-hidden="true" />
-									Open Diff demo
-								</Command.Item>
-							)}
-							<Command.Item
-								className={itemStyle}
-								onSelect={() => {
-									dialog.current?.close();
-									onRefreshAgents();
-								}}
-							>
-								<RefreshCw className="size-4" aria-hidden="true" />
-								Refresh agents
-							</Command.Item>
-						</Command.List>
-					</Command>
-				)}
-			</dialog>
+								<FileCode2 className="size-4" aria-hidden="true" />
+								Open Diff demo
+							</CommandItem>
+						)}
+					</CommandGroup>
+					<CommandSeparator />
+					<CommandGroup heading="Actions">
+						<CommandItem
+							onSelect={() => {
+								setOpen(false);
+								onRefreshAgents();
+							}}
+						>
+							<RefreshCw className="size-4" aria-hidden="true" />
+							Refresh agents
+						</CommandItem>
+					</CommandGroup>
+				</CommandList>
+			</CommandDialog>
 		</>
 	);
 }
-
-const itemStyle =
-	"flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 aria-selected:bg-selection aria-selected:text-selection-foreground";

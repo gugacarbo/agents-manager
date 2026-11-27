@@ -1,8 +1,8 @@
+import { Button } from "@/components/ui/button";
 import type {
 	DesktopQuotaProfile_Serialize,
 	DesktopQuotaWindow_Serialize,
-} from "@/bindings/tauri";
-import { Button } from "@/components/ui/button";
+} from "@/lib/claude-accounts";
 import { type Display, message } from "./desktop-quota-display";
 
 function time(value: string | null | undefined) {
@@ -39,16 +39,22 @@ function WindowQuota({
 }
 export function DesktopQuotaProfileView({
 	profile,
+	isolated,
+	isolatedStatus,
 	status,
+	switching,
 	refresh,
 	action,
 }: {
 	profile: DesktopQuotaProfile_Serialize;
+	isolated: DesktopQuotaProfile_Serialize | undefined;
+	isolatedStatus: Display | undefined;
 	status: Display | undefined;
+	switching: boolean;
 	refresh: (profile: DesktopQuotaProfile_Serialize) => Promise<void>;
 	action: (
 		profile: DesktopQuotaProfile_Serialize,
-		kind: "open" | "link",
+		kind: "open" | "link" | "switch",
 	) => Promise<void>;
 }) {
 	const state = profile.state;
@@ -80,13 +86,53 @@ export function DesktopQuotaProfileView({
 			</div>
 			<div className="flex flex-wrap gap-2">
 				{state.account ? (
-					<Button
-						type="button"
-						disabled={status?.busy}
-						onClick={() => void refresh(profile)}
-					>
-						Refresh quota
-					</Button>
+					<>
+						<Button
+							type="button"
+							disabled={status?.busy}
+							onClick={() => void refresh(profile)}
+						>
+							Refresh quota
+						</Button>
+						<Button
+							type="button"
+							variant="outline"
+							disabled={status?.busy || switching}
+							onClick={() => void action(profile, "switch")}
+						>
+							{isolated
+								? "Open default session"
+								: `Open ${state.account.display_name}`}
+						</Button>
+					</>
+				) : null}
+				{isolated ? (
+					<>
+						<Button
+							type="button"
+							variant="outline"
+							disabled={isolatedStatus?.busy || switching}
+							onClick={() => void action(isolated, "switch")}
+						>
+							Open isolated profile
+						</Button>
+						<Button
+							type="button"
+							variant="outline"
+							disabled={isolatedStatus?.busy || switching}
+							onClick={() => void action(isolated, "open")}
+						>
+							Open isolated login
+						</Button>
+						<Button
+							type="button"
+							variant="outline"
+							disabled={isolatedStatus?.busy}
+							onClick={() => void action(isolated, "link")}
+						>
+							Confirm isolated account
+						</Button>
+					</>
 				) : null}
 				{!profile.is_default ? (
 					<Button
@@ -109,6 +155,16 @@ export function DesktopQuotaProfileView({
 					</Button>
 				) : null}
 			</div>
+			{isolatedStatus?.failure ? (
+				<p role="alert" className="text-sm text-destructive">
+					{isolatedStatus.failure}
+				</p>
+			) : null}
+			{isolatedStatus?.notice ? (
+				<p role="status" className="text-sm">
+					{isolatedStatus.notice}
+				</p>
+			) : null}
 			{status?.busy ? (
 				<p role="status" className="text-sm">
 					Checking Desktop account…

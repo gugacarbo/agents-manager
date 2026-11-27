@@ -1,87 +1,62 @@
-import {
-	type FormEvent,
-	useCallback,
-	useEffect,
-	useId,
-	useRef,
-	useState,
-} from "react";
-import { type ClaudeAccount, commands } from "@/bindings/tauri";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { type FormEvent, useId, useState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+	type ClaudeAccount,
+	createClaudeAccount,
+	listClaudeAccounts,
+} from "@/lib/claude-accounts";
 import { accountErrorMessage } from "./account-status";
 import { ClaudeAccountProfile } from "./ClaudeAccountProfile";
 import { ClaudeAccountQuotas } from "./ClaudeAccountQuotas";
 
-type Profiles =
-	| { state: "loading" }
-	| { state: "failed"; message: string }
-	| { state: "loaded"; items: ClaudeAccount[] };
+const claudeAccountsQueryKey = ["claude-accounts"] as const;
 
 export function ClaudeAccountProfiles() {
 	const displayNameId = useId();
 	const profilesHeadingId = useId();
-	const [profiles, setProfiles] = useState<Profiles>({ state: "loading" });
+	const queryClient = useQueryClient();
 	const [displayName, setDisplayName] = useState("");
-	const [creating, setCreating] = useState(false);
-	const [createError, setCreateError] = useState("");
-	const listing = useRef<AbortController | null>(null);
-	const adding = useRef(false);
 
-	const load = useCallback(async () => {
-		if (listing.current) return;
-		const controller = new AbortController();
-		listing.current = controller;
-		setProfiles({ state: "loading" });
-		try {
-			const items = await commands.listClaudeAccounts();
-			if (!controller.signal.aborted) setProfiles({ state: "loaded", items });
-		} catch (error) {
-			if (!controller.signal.aborted) {
-				setProfiles({
-					state: "failed",
-					message: accountErrorMessage(
-						error,
-						"Could not load local profiles. Try again.",
-					),
-				});
-			}
-		} finally {
-			if (listing.current === controller) listing.current = null;
-		}
-	}, []);
+	const profilesQuery = useQuery({
+		queryKey: claudeAccountsQueryKey,
+		queryFn: listClaudeAccounts,
+	});
 
-	useEffect(() => {
-		void load();
-		return () => {
-			listing.current?.abort();
-			listing.current = null;
-		};
-	}, [load]);
-
-	async function addProfile(event: FormEvent<HTMLFormElement>) {
-		event.preventDefault();
-		const name = displayName.trim();
-		if (adding.current || !name || profiles.state !== "loaded") return;
-		adding.current = true;
-		setCreating(true);
-		setCreateError("");
-		try {
-			const created = await commands.createClaudeAccount(name);
-			setProfiles((current) =>
-				current.state === "loaded"
-					? { state: "loaded", items: [...current.items, created] }
-					: current,
+	const createMutation = useMutation({
+		mutationFn: createClaudeAccount,
+		onSuccess: (created) => {
+			queryClient.setQueryData<ClaudeAccount[]>(
+				claudeAccountsQueryKey,
+				(current) => (current ? [...current, created] : [created]),
 			);
 			setDisplayName("");
-		} catch (error) {
-			setCreateError(
-				accountErrorMessage(error, "Could not add the profile. Try again."),
-			);
-		} finally {
-			adding.current = false;
-			setCreating(false);
-		}
+		},
+	});
+
+	function addProfile(event: FormEvent<HTMLFormElement>) {
+		event.preventDefault();
+		const name = displayName.trim();
+		if (createMutation.isPending || !name || !profilesQuery.isSuccess) return;
+		createMutation.reset();
+		createMutation.mutate(name);
 	}
+
+	const loading =
+		profilesQuery.isPending ||
+		(profilesQuery.isFetching && !profilesQuery.isSuccess);
+	const failed = profilesQuery.isError && !profilesQuery.isFetching;
+	const loaded = profilesQuery.isSuccess;
+	const items = profilesQuery.data ?? [];
+	const createError = createMutation.isError
+		? accountErrorMessage(
+				createMutation.error,
+				"Could not add the profile. Try again.",
+			)
+		: "";
 
 	return (
 		<div className="max-w-3xl space-y-6">
@@ -99,18 +74,15 @@ export function ClaudeAccountProfiles() {
 			<ClaudeAccountQuotas />
 			<form
 				className="space-y-2 rounded-lg border border-border bg-card p-4"
-				onSubmit={(event) => void addProfile(event)}
+				onSubmit={addProfile}
 			>
 				<div className="flex flex-wrap items-end gap-3">
-					<div className="min-w-0 flex-1 space-y-1">
-						<label className="text-sm font-medium" htmlFor={displayNameId}>
-							Display name
-						</label>
-						<input
+					<div className="min-w-0 flex-1 space-y-1.5">
+						<Label htmlFor={displayNameId}>Display name</Label>
+						<Input
 							id={displayNameId}
-							className="min-h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 							required
-							disabled={profiles.state !== "loaded" || creating}
+							disabled={!loaded || createMutation.isPending}
 							value={displayName}
 							onChange={(event) => setDisplayName(event.target.value)}
 						/>
@@ -118,44 +90,55 @@ export function ClaudeAccountProfiles() {
 					<Button
 						type="submit"
 						disabled={
-							!displayName.trim() || profiles.state !== "loaded" || creating
+							!displayName.trim() || !loaded || createMutation.isPending
 						}
 					>
-						{creating ? "Adding profile…" : "Add profile"}
+						{createMutation.isPending ? "Adding profile…" : "Add profile"}
 					</Button>
 				</div>
 				{createError ? (
-					<p role="alert" className="text-sm text-destructive">
-						{createError}
-					</p>
+					<Alert variant="destructive">
+						<AlertDescription>{createError}</AlertDescription>
+					</Alert>
 				) : null}
 			</form>
 			<section aria-labelledby={profilesHeadingId} className="space-y-3">
 				<h2 id={profilesHeadingId} className="text-lg font-semibold">
 					Local profiles
 				</h2>
-				{profiles.state === "loading" ? (
+				{loading ? (
 					<p role="status" className="text-sm text-muted-foreground">
 						Loading profiles…
 					</p>
 				) : null}
-				{profiles.state === "failed" ? (
+				{failed ? (
 					<div className="space-y-2">
-						<p role="alert" className="text-sm text-destructive">
-							{profiles.message}
-						</p>
-						<Button type="button" variant="outline" onClick={() => void load()}>
+						<Alert variant="destructive">
+							<AlertDescription>
+								{accountErrorMessage(
+									profilesQuery.error,
+									"Could not load local profiles. Try again.",
+								)}
+							</AlertDescription>
+						</Alert>
+						<Button
+							type="button"
+							variant="outline"
+							onClick={() =>
+								void profilesQuery.refetch({ cancelRefetch: false })
+							}
+						>
 							Retry loading profiles
 						</Button>
 					</div>
 				) : null}
-				{profiles.state === "loaded" &&
-					(profiles.items.length ? (
+				{loaded &&
+					(items.length ? (
 						<ul
 							aria-labelledby={profilesHeadingId}
 							className="divide-y divide-border rounded-lg border border-border bg-card"
 						>
-							{profiles.items.map((profile) => (
+							{items.map((profile) => (
 								<ClaudeAccountProfile key={profile.id} profile={profile} />
 							))}
 						</ul>

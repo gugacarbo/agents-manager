@@ -110,19 +110,19 @@ body {
 	color-scheme: dark;
 }
 
-:focus-visible {
-	outline: 2px solid var(--ring);
-	outline-offset: 2px;
+@layer base {
+	:focus-visible {
+		outline: 2px solid var(--ring);
+		outline-offset: 2px;
+	}
 }
 
 .workspace-shell {
 	--title-bar-height: 0rem;
-	--workspace-sidebar-height: calc(100vh - var(--title-bar-height));
-	grid-template-columns: 13.5rem minmax(0, 1fr);
 }
 
 .workspace-shell[data-desktop="true"] {
-	--title-bar-height: 2.5rem;
+	--title-bar-height: 3rem;
 }
 
 .agent-inventory-grid {

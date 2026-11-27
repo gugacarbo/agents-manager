@@ -1,5 +1,11 @@
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useId, useRef, useState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+	NativeSelect,
+	NativeSelectOption,
+} from "@/components/ui/native-select";
 import { RemoteConfigBrowser } from "@/features/configs";
 import {
 	environments,
@@ -8,6 +14,7 @@ import {
 } from "@/lib/environments";
 import { ConnectionForm } from "./ConnectionForm";
 export function EnvironmentSwitcher({ children }: { children: ReactNode }) {
+	const environmentSelectId = useId();
 	const [items, setItems] = useState<SshEnvironment[]>([]);
 	const [active, setActive] = useState("local");
 	const [form, setForm] = useState<SshEnvironment | "new" | null>(null);
@@ -89,21 +96,22 @@ export function EnvironmentSwitcher({ children }: { children: ReactNode }) {
 	return (
 		<div className="space-y-4">
 			<div className="flex flex-wrap items-end gap-2 rounded-lg border border-border bg-card p-3">
-				<label className="min-w-48 flex-1 text-sm">
-					Environment
-					<select
-						className="min-h-9 w-full rounded-md border border-input bg-background px-3"
+				<div className="min-w-48 flex-1 space-y-1.5">
+					<Label htmlFor={environmentSelectId}>Environment</Label>
+					<NativeSelect
+						id={environmentSelectId}
+						wrapperClassName="w-full"
 						value={active}
 						onChange={(event) => switchTo(event.target.value)}
 					>
-						<option value="local">Local</option>
+						<NativeSelectOption value="local">Local</NativeSelectOption>
 						{items.map((item) => (
-							<option key={item.id} value={item.id}>
+							<NativeSelectOption key={item.id} value={item.id}>
 								{item.name}
-							</option>
+							</NativeSelectOption>
 						))}
-					</select>
-				</label>
+					</NativeSelect>
+				</div>
 				<Button
 					variant="outline"
 					onClick={() => {
@@ -200,9 +208,9 @@ export function EnvironmentSwitcher({ children }: { children: ReactNode }) {
 					</div>
 					{loading && <p role="status">Checking remote agent inventory…</p>}
 					{error && (
-						<p role="alert" className="text-destructive">
-							{error}
-						</p>
+						<Alert variant="destructive">
+							<AlertDescription>{error}</AlertDescription>
+						</Alert>
 					)}
 					{inventory && (
 						<>

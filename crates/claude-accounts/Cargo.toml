@@ -1,0 +1,24 @@
+[package]
+name = "agents-manager-claude-accounts"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+specta = { version = "=2.0.0-rc.28", features = ["derive"] }
+tempfile = "3"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+aes = "0.8"
+base64 = "0.22"
+cbc = { version = "0.1", features = ["alloc", "block-padding"] }
+nix = { version = "0.30", features = ["fs", "signal", "process", "user"] }
+pbkdf2 = "0.12"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+sha1 = "0.10"

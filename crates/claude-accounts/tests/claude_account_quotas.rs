@@ -1,5 +1,5 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use agents_manager_core::claude_desktop_quotas::*;
+use agents_manager_claude_accounts::desktop_quotas::*;
 use std::sync::Arc;
 
 struct Source;
@@ -246,6 +246,37 @@ fn desktop_profiles_persist_drafts_and_keep_default_history() {
 }
 
 #[test]
+fn opening_profile_requires_persisted_identity_and_propagates_unavailable_storage() {
+    let dir = tempfile::tempdir().unwrap();
+    let profiles = DesktopQuotaProfiles::new(
+        dir.path().to_owned(),
+        Arc::new(|_| Arc::new(Source)),
+        Arc::new(|| 1_000_000),
+    );
+    let draft = profiles.create().unwrap();
+    assert_eq!(
+        profiles.ensure_linked(&draft.id),
+        Err(DesktopQuotaError::Unauthenticated)
+    );
+    assert_eq!(
+        profiles.ensure_linked("unknown"),
+        Err(DesktopQuotaError::ProfileNotFound)
+    );
+    profiles.link(&draft.id).unwrap();
+    assert_eq!(profiles.ensure_linked(&draft.id), Ok(()));
+
+    std::fs::write(
+        profiles.profile_dir(&draft.id).unwrap().join("state.json"),
+        "unreadable state",
+    )
+    .unwrap();
+    assert_eq!(
+        profiles.ensure_linked(&draft.id),
+        Err(DesktopQuotaError::StorageUnavailable)
+    );
+}
+
+#[test]
 fn unreadable_profile_state_does_not_hide_other_accounts() {
     let dir = tempfile::tempdir().unwrap();
     let profiles = DesktopQuotaProfiles::new(
@@ -271,7 +302,7 @@ fn unreadable_profile_state_does_not_hide_other_accounts() {
 }
 
 #[test]
-fn profiles_reject_duplicates_and_preserve_independent_results() {
+fn different_accounts_preserve_independent_results() {
     let dir = tempfile::tempdir().unwrap();
     let a = mutable_source();
     let b = mutable_source();
@@ -291,10 +322,6 @@ fn profiles_reject_duplicates_and_preserve_independent_results() {
     let draft = profiles.create().unwrap();
     sources.lock().unwrap().insert(draft.id.clone(), b.clone());
     profiles.link("default").unwrap();
-    assert_eq!(
-        profiles.link(&draft.id).unwrap_err(),
-        DesktopQuotaError::DuplicateAccount
-    );
     *b.id.lock().unwrap() = "b".into();
     profiles.link(&draft.id).unwrap();
     let good = profiles.refresh("default").unwrap();
@@ -309,6 +336,39 @@ fn profiles_reject_duplicates_and_preserve_independent_results() {
             .state
             .last_success
             .is_some()
+    );
+}
+
+#[test]
+fn permits_one_isolated_session_for_the_default_account_and_shares_the_quota() {
+    let dir = tempfile::tempdir().unwrap();
+    let source = Arc::new(Source);
+    let factory = Arc::new(move |_: &str| -> Arc<dyn DesktopQuotaSource> { source.clone() });
+    let profiles =
+        DesktopQuotaProfiles::new(dir.path().to_owned(), factory, Arc::new(|| 1_000_000));
+    let isolated = profiles.create().unwrap();
+    profiles.link("default").unwrap();
+    assert!(profiles.link(&isolated.id).unwrap().shares_default_quota);
+    assert!(
+        profiles
+            .list()
+            .unwrap()
+            .into_iter()
+            .any(|item| item.id == isolated.id && item.shares_default_quota)
+    );
+
+    assert_eq!(
+        profiles.refresh("default").unwrap().status,
+        DesktopQuotaRefreshStatus::Updated
+    );
+    assert_eq!(
+        profiles.refresh(&isolated.id).unwrap().status,
+        DesktopQuotaRefreshStatus::Wait
+    );
+    let duplicate = profiles.create().unwrap();
+    assert_eq!(
+        profiles.link(&duplicate.id).unwrap_err(),
+        DesktopQuotaError::DuplicateAccount
     );
 }
 

@@ -84,9 +84,9 @@ bun run validate:fast      # exit 0 — gate rápido executado no pre-push
 <!-- Index of chapters (docs/context/), each stating WHEN to load it.
      Chapter = current, imperative, timeless state. Dated decision = ADR. -->
 
-| Chapter    | When to load |
-| ---------- | ------------ |
-| (none yet) | —            |
+| Chapter                        | When to load                                                                      |
+| ------------------------------ | --------------------------------------------------------------------------------- |
+| `docs/context/architecture.md` | ao alterar fronteiras Rust/IPC, adapters, SSH remoto, perfis Claude ou guardrails |
 
 ## Docs map
 

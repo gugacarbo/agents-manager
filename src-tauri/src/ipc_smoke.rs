@@ -32,6 +32,7 @@ fn list_agents_ipc_returns_agent_summaries() {
             "ipc_smoke::list_agents_ipc_returns_agent_summaries",
         ])
         .env("HOME", home.path())
+        .env("XDG_DATA_HOME", home.path().join(".local/share"))
         .env(CHILD_HOME, home.path())
         .output()
         .expect("run IPC smoke test in an isolated home");
@@ -124,4 +125,55 @@ fn assert_list_agents_response(home: &Path) {
             assert!(config_path.is_null(), "expected null configPath for {kind}");
         }
     }
+
+    let prefs_get = test::get_ipc_response(
+        &webview,
+        InvokeRequest {
+            cmd: "get_app_preferences".into(),
+            callback: tauri::ipc::CallbackFn(0),
+            error: tauri::ipc::CallbackFn(1),
+            url: webview.url().expect("webview URL"),
+            body: Default::default(),
+            headers: Default::default(),
+            invoke_key: test::INVOKE_KEY.into(),
+        },
+    )
+    .expect("get_app_preferences must succeed over IPC");
+    let InvokeResponseBody::Json(prefs_json) = prefs_get else {
+        panic!("expected a JSON IPC response, got {prefs_get:?}");
+    };
+    let prefs_payload = tauri::utils::config::parse::parse_json_value(
+        &prefs_json,
+        Path::new("get_app_preferences IPC"),
+    )
+    .expect("deserialize get_app_preferences response JSON");
+    assert_eq!(prefs_payload["minimizeToTray"], true);
+
+    let update_prefs = tauri::utils::config::parse::parse_json_value(
+        r#"{"preferences":{"minimizeToTray":false}}"#,
+        Path::new("set_app_preferences IPC"),
+    )
+    .expect("parse set_app_preferences request");
+    let prefs_set = test::get_ipc_response(
+        &webview,
+        InvokeRequest {
+            cmd: "set_app_preferences".into(),
+            callback: tauri::ipc::CallbackFn(0),
+            error: tauri::ipc::CallbackFn(1),
+            url: webview.url().expect("webview URL"),
+            body: InvokeBody::Json(update_prefs),
+            headers: Default::default(),
+            invoke_key: test::INVOKE_KEY.into(),
+        },
+    )
+    .expect("set_app_preferences must succeed over IPC");
+    let InvokeResponseBody::Json(prefs_set_json) = prefs_set else {
+        panic!("expected a JSON IPC response, got {prefs_set:?}");
+    };
+    let prefs_set_payload = tauri::utils::config::parse::parse_json_value(
+        &prefs_set_json,
+        Path::new("set_app_preferences IPC response"),
+    )
+    .expect("deserialize set_app_preferences response JSON");
+    assert_eq!(prefs_set_payload["minimizeToTray"], false);
 }

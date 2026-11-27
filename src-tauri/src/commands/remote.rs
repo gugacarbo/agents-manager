@@ -1,4 +1,7 @@
-use super::{SSH_REVISION, data_dir, registry_lock, ssh_registry, ssh_snapshot_unchanged};
+use super::{
+    data_dir, registry_lock,
+    ssh::{SSH_REVISION, ssh_registry, ssh_snapshot_unchanged},
+};
 use crate::remote_state::{RemoteSession, RemoteState, next_token};
 use agents_manager_core::{
     domain::{
@@ -6,8 +9,8 @@ use agents_manager_core::{
         SecretSpan, SshEnvironment, SshEnvironmentDraft,
     },
     error::CoreError,
-    ssh::SshTransport,
 };
+use agents_manager_remote::ssh::SshTransport;
 use serde::Serialize;
 use specta::Type;
 use std::sync::atomic::Ordering;
@@ -45,13 +48,10 @@ fn state_error() -> CoreError {
         message: "Remote editor state unavailable.".into(),
     }
 }
-fn missing_handle() -> CoreError {
-    CoreError::RemoteDestinationChanged
-}
 
 fn environment(id: &str) -> Result<(SshEnvironment, u64), CoreError> {
     let _guard = registry_lock()?;
-    let env = agents_manager_core::ssh::list_environments(&ssh_registry()?)?
+    let env = agents_manager_remote::ssh::list_environments(&ssh_registry()?)?
         .into_iter()
         .find(|entry| entry.id == id)
         .ok_or_else(|| CoreError::NotFound { target: id.into() })?;
@@ -80,15 +80,6 @@ fn same_destination(a: &RemoteConfigDocument, b: &RemoteConfigDocument) -> bool 
         && a.path == b.path
         && a.entry.id == b.entry.id
 }
-fn get_session(state: &RemoteState, handle: &str) -> Result<RemoteSession, CoreError> {
-    state
-        .sessions
-        .lock()
-        .map_err(|_| state_error())?
-        .get(handle)
-        .cloned()
-        .ok_or_else(missing_handle)
-}
 fn publish(state: &RemoteState, session: RemoteSession) -> Result<RemoteOpenResult, CoreError> {
     let handle = next_token();
     let doc = &session.document;
@@ -103,11 +94,7 @@ fn publish(state: &RemoteState, session: RemoteSession) -> Result<RemoteOpenResu
         sha256: doc.sha256.clone(),
         secret_spans: doc.secret_spans.clone(),
     };
-    state
-        .sessions
-        .lock()
-        .map_err(|_| state_error())?
-        .insert(handle, session);
+    state.insert_session(handle, session)?;
     Ok(result)
 }
 
@@ -120,7 +107,7 @@ pub async fn list_remote_config_files(
     let (env, revision) = environment(&environment_id)?;
     let input = draft(&env);
     let entries = tauri::async_runtime::spawn_blocking(move || {
-        agents_manager_core::remote_config::list_files(&SshTransport::default(), &input)
+        agents_manager_remote::remote_config::list_files(&SshTransport::default(), &input)
     })
     .await
     .map_err(|_| state_error())?;
@@ -143,7 +130,7 @@ pub async fn open_remote_config(
     let (env, revision) = environment(&environment_id)?;
     let input = draft(&env);
     let document = tauri::async_runtime::spawn_blocking(move || {
-        agents_manager_core::remote_config::read_config(&SshTransport::default(), &input, file_id)
+        agents_manager_remote::remote_config::read_config(&SshTransport::default(), &input, file_id)
     })
     .await
     .map_err(|_| state_error())?;
@@ -169,17 +156,13 @@ pub fn review_remote_config(
     content: String,
 ) -> Result<RemoteReviewResult, CoreError> {
     let _guard = registry_lock()?;
-    let session = get_session(&state, &handle)?;
+    let session = state.get_session(&handle)?;
     if session.requires_verification {
         return Err(CoreError::RemoteDestinationChanged);
     }
     current(&session.environment, session.revision)?;
-    agents_manager_core::remote_config::validate_draft(&session.document, &content)?;
-    let id = state
-        .reviews
-        .lock()
-        .map_err(|_| state_error())?
-        .issue(handle, content.clone());
+    agents_manager_remote::remote_config::validate_draft(&session.document, &content)?;
+    let id = state.issue_review(&handle, content.clone())?;
     let doc = session.document;
     Ok(RemoteReviewResult {
         review_id: id,
@@ -206,25 +189,11 @@ pub async fn save_remote_config(
             message: "Explicit confirmation is required.".into(),
         });
     }
-    let (handle, content) = state
-        .reviews
-        .lock()
-        .map_err(|_| state_error())?
-        .consume(&review_id)
-        .ok_or_else(missing_handle)?;
-    let session = {
-        let mut sessions = state.sessions.lock().map_err(|_| state_error())?;
-        let session = sessions.get_mut(&handle).ok_or_else(missing_handle)?;
-        if session.requires_verification {
-            return Err(CoreError::RemoteDestinationChanged);
-        }
-        session.requires_verification = true;
-        session.clone()
-    };
+    let (session, content) = state.begin_save(&review_id)?;
     tauri::async_runtime::spawn_blocking(move || {
         let _guard = registry_lock()?;
         current(&session.environment, session.revision)?;
-        agents_manager_core::remote_config::save_config(
+        agents_manager_remote::remote_config::save_config(
             &SshTransport::default(),
             &draft(&session.environment),
             &session.document,
@@ -242,12 +211,12 @@ pub async fn verify_remote_config(
     state: tauri::State<'_, RemoteState>,
     handle: String,
 ) -> Result<RemoteOpenResult, CoreError> {
-    let old = get_session(&state, &handle)?;
+    let old = state.get_session(&handle)?;
     let read_session = old.clone();
     let document = tauri::async_runtime::spawn_blocking(move || {
         let _guard = registry_lock()?;
         current(&read_session.environment, read_session.revision)?;
-        agents_manager_core::remote_config::read_config(
+        agents_manager_remote::remote_config::read_config(
             &SshTransport::default(),
             &draft(&read_session.environment),
             read_session.document.entry.id,
@@ -261,16 +230,7 @@ pub async fn verify_remote_config(
     if !same_destination(&old.document, &document) {
         return Err(CoreError::RemoteDestinationChanged);
     }
-    state
-        .sessions
-        .lock()
-        .map_err(|_| state_error())?
-        .remove(&handle);
-    state
-        .reviews
-        .lock()
-        .map_err(|_| state_error())?
-        .invalidate(&handle);
+    state.remove_session(&handle)?;
     publish(
         &state,
         RemoteSession {

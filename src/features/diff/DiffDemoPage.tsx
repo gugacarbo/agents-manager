@@ -1,10 +1,11 @@
 import { Chunk } from "@codemirror/merge";
 import { Text } from "@codemirror/state";
 import { RotateCcw } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { CodeEditor } from "@/components/CodeEditor";
 import { PageHeader } from "@/components/patterns";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const INITIAL_ORIGINAL = `{
   "mcpServers": {
@@ -94,30 +95,7 @@ export function DiffDemoPage() {
 	const [draft, setDraft] = useState(INITIAL_DRAFT);
 	const [activeTab, setActiveTab] = useState<"editor" | "diff">("editor");
 	const isWide = useIsWideViewport();
-	const editorTabRef = useRef<HTMLButtonElement>(null);
-	const diffTabRef = useRef<HTMLButtonElement>(null);
 	const isDirty = draft !== INITIAL_DRAFT;
-
-	function handleTabKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
-		let next: "editor" | "diff";
-		switch (event.key) {
-			case "ArrowRight":
-			case "ArrowLeft":
-				next = activeTab === "editor" ? "diff" : "editor";
-				break;
-			case "Home":
-				next = "editor";
-				break;
-			case "End":
-				next = "diff";
-				break;
-			default:
-				return;
-		}
-		event.preventDefault();
-		setActiveTab(next);
-		(next === "editor" ? editorTabRef : diffTabRef).current?.focus();
-	}
 
 	return (
 		<div className="space-y-4">
@@ -154,37 +132,27 @@ export function DiffDemoPage() {
 					</div>
 				</div>
 			) : (
-				<>
-					<div
-						role="tablist"
-						aria-label="Diff demo views"
-						className="flex flex-wrap gap-2 border-b border-border pb-2"
-					>
-						{(["editor", "diff"] as const).map((panel) => (
-							<Button
-								key={panel}
-								ref={panel === "editor" ? editorTabRef : diffTabRef}
-								id={`demo-tab-${panel}`}
-								variant="ghost"
-								size="sm"
-								role="tab"
-								aria-controls={`demo-panel-${panel}`}
-								aria-selected={activeTab === panel}
-								tabIndex={activeTab === panel ? 0 : -1}
-								onClick={() => setActiveTab(panel)}
-								onKeyDown={handleTabKeyDown}
-								className="aria-selected:bg-selection aria-selected:text-selection-foreground"
-							>
-								{panel === "editor" ? "Sample editor" : "Changes from original"}
-							</Button>
-						))}
-					</div>
-					<div
+				<Tabs
+					value={activeTab}
+					onValueChange={(value) => {
+						if (value === "editor" || value === "diff") {
+							setActiveTab(value);
+						}
+					}}
+				>
+					<TabsList aria-label="Diff demo views">
+						<TabsTrigger id="demo-tab-editor" value="editor">
+							Sample editor
+						</TabsTrigger>
+						<TabsTrigger id="demo-tab-diff" value="diff">
+							Changes from original
+						</TabsTrigger>
+					</TabsList>
+					<TabsContent
 						id="demo-panel-editor"
-						role="tabpanel"
-						aria-labelledby="demo-tab-editor"
-						hidden={activeTab !== "editor"}
-						className="min-w-0"
+						value="editor"
+						forceMount
+						className={activeTab === "editor" ? "min-w-0" : "hidden"}
 					>
 						<CodeEditor
 							value={draft}
@@ -192,17 +160,11 @@ export function DiffDemoPage() {
 							ariaLabel="Sample editor"
 							className="demo-editor-height"
 						/>
-					</div>
-					<div
-						id="demo-panel-diff"
-						role="tabpanel"
-						aria-labelledby="demo-tab-diff"
-						hidden={activeTab !== "diff"}
-						className="min-w-0"
-					>
-						{activeTab === "diff" && <SampleDiff draft={draft} />}
-					</div>
-				</>
+					</TabsContent>
+					<TabsContent id="demo-panel-diff" value="diff" className="min-w-0">
+						<SampleDiff draft={draft} />
+					</TabsContent>
+				</Tabs>
 			)}
 		</div>
 	);

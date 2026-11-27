@@ -1,4 +1,7 @@
-import type { AccountError, AccountStatus_Serialize } from "@/bindings/tauri";
+import type {
+	AccountError,
+	AccountStatus_Serialize,
+} from "@/lib/claude-accounts";
 
 const accountErrors = {
 	invalidDisplayName: "Enter a display name of up to 100 characters.",
@@ -19,8 +22,14 @@ const accountErrors = {
 } satisfies Record<AccountError, string>;
 
 export function accountErrorMessage(error: unknown, fallback: string) {
-	return typeof error === "string" && Object.hasOwn(accountErrors, error)
-		? accountErrors[error as AccountError]
+	const code =
+		typeof error === "string"
+			? error
+			: error instanceof Error
+				? error.message
+				: null;
+	return code !== null && Object.hasOwn(accountErrors, code)
+		? accountErrors[code as AccountError]
 		: fallback;
 }
 

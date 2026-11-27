@@ -11,3 +11,6 @@
 | [SPEC-0005](0005-editar-configuracoes-globais-de-agentes-via-ssh.md) | Editar configurações globais de agentes via SSH | accepted |
 | [SPEC-0006](0006-cadastrar-contas-do-claude-code-em-perfis-isolados.md) | Cadastrar contas do Claude Code em perfis isolados | accepted |
 | [SPEC-0007](0007-monitorar-cotas-por-conta-do-claude-code.md) | Monitorar cotas de várias contas do Claude Desktop | accepted |
+| [SPEC-0008](0008-trocar-contas-do-claude-desktop-por-perfil-isolado.md) | Trocar contas do Claude Desktop por perfil isolado | accepted |
+| [SPEC-0009](0009-importar-conversas-locais-e-ssh-ao-trocar-contas-do-claude-desktop.md) | Importar conversas locais e SSH ao trocar contas do Claude Desktop | draft |
+| [SPEC-0010](0010-aplicar-preferencias-de-interface-e-mcps-entre-perfis-do-claude-desktop.md) | Aplicar preferências de interface e MCPs entre perfis do Claude Desktop | draft |

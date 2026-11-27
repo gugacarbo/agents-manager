@@ -35,9 +35,14 @@ export const commands = {
 	reviewRemoteConfig: (handle: string, content: string, options?: InvokeOptions) => __TAURI_INVOKE<RemoteReviewResult>("review_remote_config", { handle, content }, options),
 	saveRemoteConfig: (reviewId: string, confirmed: boolean, options?: InvokeOptions) => __TAURI_INVOKE<RemoteSaveResult>("save_remote_config", { reviewId, confirmed }, options),
 	verifyRemoteConfig: (handle: string, options?: InvokeOptions) => __TAURI_INVOKE<RemoteOpenResult>("verify_remote_config", { handle }, options),
+	/**  Reads persisted desktop preferences and refreshes the in-memory tray state. */
+	getAppPreferences: (options?: InvokeOptions) => __TAURI_INVOKE<AppPreferences_Serialize>("get_app_preferences", undefined, options),
+	/**  Persists desktop preferences and updates the in-memory tray state immediately. */
+	setAppPreferences: (preferences: AppPreferences_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<AppPreferences_Serialize>("set_app_preferences", { preferences }, options),
 	listClaudeDesktopQuotaProfiles: (options?: InvokeOptions) => __TAURI_INVOKE<DesktopQuotaProfile_Serialize[]>("list_claude_desktop_quota_profiles", undefined, options),
 	createClaudeDesktopQuotaProfile: (options?: InvokeOptions) => __TAURI_INVOKE<DesktopQuotaProfile_Serialize>("create_claude_desktop_quota_profile", undefined, options),
 	openClaudeDesktopQuotaLogin: (profileId: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("open_claude_desktop_quota_login", { profileId }, options),
+	openClaudeDesktopQuotaProfile: (profileId: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("open_claude_desktop_quota_profile", { profileId }, options),
 	linkClaudeDesktopQuotaAccount: (profileId: string, options?: InvokeOptions) => __TAURI_INVOKE<DesktopQuotaProfile_Serialize>("link_claude_desktop_quota_account", { profileId }, options),
 	refreshClaudeDesktopQuota: (profileId: string, options?: InvokeOptions) => __TAURI_INVOKE<DesktopQuotaRefresh_Serialize>("refresh_claude_desktop_quota", { profileId }, options),
 	listClaudeAccounts: (options?: InvokeOptions) => __TAURI_INVOKE<ClaudeAccount[]>("list_claude_accounts", undefined, options),
@@ -87,6 +92,19 @@ export type AgentSummary_Serialize = {
 	configPath: string | null,
 };
 
+/**  User preferences for desktop window and tray behavior. */
+export type AppPreferences = AppPreferences_Serialize | AppPreferences_Deserialize;
+
+/**  User preferences for desktop window and tray behavior. */
+export type AppPreferences_Deserialize = {
+	minimizeToTray?: boolean,
+};
+
+/**  User preferences for desktop window and tray behavior. */
+export type AppPreferences_Serialize = {
+	minimizeToTray: boolean,
+};
+
 export type ClaudeAccount = {
 	id: string,
 	displayName: string,
@@ -119,40 +137,38 @@ export type ConfigScope = "global" | "project";
 export type CoreError = "RemoteDestinationChanged" | "RemoteUnconfirmed" | "ProtectedField" | ({ SshError: {
 	kind: SshErrorKind,
 	message: string,
-} }) & { DuplicateProject?: never; InvalidPath?: never; Io?: never; IoError?: never; NotFound?: never; PathNotAllowed?: never; PermissionDenied?: never; Serialization?: never; SyntaxError?: never } | "SecretConfirmationRequired" | ({ DuplicateProject: {
+} }) & { DuplicateProject?: never; InvalidPath?: never; IoError?: never; NotFound?: never; PathNotAllowed?: never; PermissionDenied?: never; Serialization?: never; SyntaxError?: never } | "SecretConfirmationRequired" | ({ DuplicateProject: {
 	id: string,
 	root_path: string,
-} }) & { InvalidPath?: never; Io?: never; IoError?: never; NotFound?: never; PathNotAllowed?: never; PermissionDenied?: never; Serialization?: never; SshError?: never; SyntaxError?: never } | ({ PermissionDenied: {
+} }) & { InvalidPath?: never; IoError?: never; NotFound?: never; PathNotAllowed?: never; PermissionDenied?: never; Serialization?: never; SshError?: never; SyntaxError?: never } | ({ PermissionDenied: {
 	message: string,
-} }) & { DuplicateProject?: never; InvalidPath?: never; Io?: never; IoError?: never; NotFound?: never; PathNotAllowed?: never; Serialization?: never; SshError?: never; SyntaxError?: never } | ({ PathNotAllowed: {
+} }) & { DuplicateProject?: never; InvalidPath?: never; IoError?: never; NotFound?: never; PathNotAllowed?: never; Serialization?: never; SshError?: never; SyntaxError?: never } | ({ PathNotAllowed: {
 	path: string,
-} }) & { DuplicateProject?: never; InvalidPath?: never; Io?: never; IoError?: never; NotFound?: never; PermissionDenied?: never; Serialization?: never; SshError?: never; SyntaxError?: never } | ({ SyntaxError: {
+} }) & { DuplicateProject?: never; InvalidPath?: never; IoError?: never; NotFound?: never; PermissionDenied?: never; Serialization?: never; SshError?: never; SyntaxError?: never } | ({ SyntaxError: {
 	message: string,
-} }) & { DuplicateProject?: never; InvalidPath?: never; Io?: never; IoError?: never; NotFound?: never; PathNotAllowed?: never; PermissionDenied?: never; Serialization?: never; SshError?: never } | "ExternalConflict" | ({ IoError: {
-	message: string,
-} }) & { DuplicateProject?: never; InvalidPath?: never; Io?: never; NotFound?: never; PathNotAllowed?: never; PermissionDenied?: never; Serialization?: never; SshError?: never; SyntaxError?: never } |
+} }) & { DuplicateProject?: never; InvalidPath?: never; IoError?: never; NotFound?: never; PathNotAllowed?: never; PermissionDenied?: never; Serialization?: never; SshError?: never } | "ExternalConflict" |
 /**  Filesystem or I/O operation failure. */
-({ Io: {
+({ IoError: {
 	message: string,
-} }) & { DuplicateProject?: never; InvalidPath?: never; IoError?: never; NotFound?: never; PathNotAllowed?: never; PermissionDenied?: never; Serialization?: never; SshError?: never; SyntaxError?: never } |
+} }) & { DuplicateProject?: never; InvalidPath?: never; NotFound?: never; PathNotAllowed?: never; PermissionDenied?: never; Serialization?: never; SshError?: never; SyntaxError?: never } |
 /**  Serialization or deserialization failure. */
 ({ Serialization: {
 	message: string,
-} }) & { DuplicateProject?: never; InvalidPath?: never; Io?: never; IoError?: never; NotFound?: never; PathNotAllowed?: never; PermissionDenied?: never; SshError?: never; SyntaxError?: never } |
+} }) & { DuplicateProject?: never; InvalidPath?: never; IoError?: never; NotFound?: never; PathNotAllowed?: never; PermissionDenied?: never; SshError?: never; SyntaxError?: never } |
 /**  Invalid or inaccessible filesystem path. */
 ({ InvalidPath: {
 	path: string,
-} }) & { DuplicateProject?: never; Io?: never; IoError?: never; NotFound?: never; PathNotAllowed?: never; PermissionDenied?: never; Serialization?: never; SshError?: never; SyntaxError?: never } |
+} }) & { DuplicateProject?: never; IoError?: never; NotFound?: never; PathNotAllowed?: never; PermissionDenied?: never; Serialization?: never; SshError?: never; SyntaxError?: never } |
 /**  Expected resource was not found. */
 ({ NotFound: {
 	target: string,
-} }) & { DuplicateProject?: never; InvalidPath?: never; Io?: never; IoError?: never; PathNotAllowed?: never; PermissionDenied?: never; Serialization?: never; SshError?: never; SyntaxError?: never };
+} }) & { DuplicateProject?: never; InvalidPath?: never; IoError?: never; PathNotAllowed?: never; PermissionDenied?: never; Serialization?: never; SshError?: never; SyntaxError?: never };
 
 export type DesktopQuotaAccount = {
 	display_name: string,
 };
 
-export type DesktopQuotaError = "desktop_running" | "unauthenticated" | "source_unavailable" | "source_incompatible" | "identity_mismatch" | "rate_limited" | "not_linked" | "storage_unavailable" | "duplicate_account" | "profile_not_found";
+export type DesktopQuotaError = "desktop_running" | "unauthenticated" | "source_unavailable" | "source_incompatible" | "identity_mismatch" | "rate_limited" | "not_linked" | "storage_unavailable" | "keyring_unavailable" | "duplicate_account" | "profile_not_found";
 
 /**  Persisted profile registry. The default slot keeps the original state location. */
 export type DesktopQuotaProfile = DesktopQuotaProfile_Serialize | DesktopQuotaProfile_Deserialize;
@@ -161,6 +177,7 @@ export type DesktopQuotaProfile = DesktopQuotaProfile_Serialize | DesktopQuotaPr
 export type DesktopQuotaProfile_Deserialize = {
 	id: string,
 	is_default: boolean,
+	shares_default_quota: boolean,
 	state: DesktopQuotaState_Deserialize,
 };
 
@@ -168,6 +185,7 @@ export type DesktopQuotaProfile_Deserialize = {
 export type DesktopQuotaProfile_Serialize = {
 	id: string,
 	is_default: boolean,
+	shares_default_quota: boolean,
 	state: DesktopQuotaState_Serialize,
 };
 

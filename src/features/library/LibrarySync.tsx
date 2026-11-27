@@ -1,5 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import {
 	type LibraryItem,
 	library,
@@ -31,6 +34,7 @@ export function LibrarySync({
 	onRefresh: () => Promise<void>;
 	onClose: () => void;
 }) {
+	const id = useId();
 	const [projectList, setProjectList] = useState<Project[]>([]);
 	const [targets, setTargets] = useState<SyncSelection[]>([]);
 	const [preview, setPreview] = useState<SyncPreview[] | null>(null);
@@ -163,54 +167,56 @@ export function LibrarySync({
 			/>
 			<fieldset disabled={busy} className="space-y-2">
 				<legend className="font-medium">Sync destinations</legend>
-				{options.map((option) => (
-					<label key={key(option)} className="flex items-center gap-2 text-sm">
-						<input
-							type="checkbox"
-							checked={targets.some((value) => key(value) === key(option))}
-							onChange={() => toggle(option)}
-						/>
-						{agents.find(([agent]) => agent === option.agent)?.[1]} ·{" "}
-						{option.scope === "global"
-							? "Global"
-							: projectList.find((project) => project.id === option.projectId)
-									?.name}
-					</label>
-				))}
-				{(item.category === "skills" || item.category === "rules") &&
-					targets.map((option) => (
-						<label
-							key={`copy:${key(option)}`}
-							className="flex items-center gap-2 text-sm"
-						>
-							<input
-								type="checkbox"
-								checked={option.copy ?? false}
-								onChange={(event) => {
-									setTargets((old) =>
-										old.map((value) =>
-											key(value) === key(option)
-												? { ...value, copy: event.target.checked }
-												: value,
-										),
-									);
-									setPreview(null);
-								}}
+				{options.map((option) => {
+					const optId = `${id}-opt-${key(option)}`;
+					const targetLabel = `${agents.find(([agent]) => agent === option.agent)?.[1]} · ${option.scope === "global" ? "Global" : projectList.find((project) => project.id === option.projectId)?.name}`;
+					return (
+						<div key={key(option)} className="flex items-center gap-2">
+							<Checkbox
+								id={optId}
+								checked={targets.some((value) => key(value) === key(option))}
+								onCheckedChange={() => toggle(option)}
 							/>
-							Use copy for{" "}
-							{agents.find(([agent]) => agent === option.agent)?.[1]} ·{" "}
-							{option.scope === "global"
-								? "Global"
-								: projectList.find((project) => project.id === option.projectId)
-										?.name}{" "}
-							(explicit fallback)
-						</label>
-					))}
+							<Label htmlFor={optId} className="font-normal">
+								{targetLabel}
+							</Label>
+						</div>
+					);
+				})}
+				{(item.category === "skills" || item.category === "rules") &&
+					targets.map((option) => {
+						const copyId = `${id}-copy-${key(option)}`;
+						const copyLabel = `Use copy for ${agents.find(([agent]) => agent === option.agent)?.[1]} · ${option.scope === "global" ? "Global" : projectList.find((project) => project.id === option.projectId)?.name} (explicit fallback)`;
+						return (
+							<div
+								key={`copy:${key(option)}`}
+								className="flex items-center gap-2"
+							>
+								<Checkbox
+									id={copyId}
+									checked={option.copy ?? false}
+									onCheckedChange={(checked) => {
+										setTargets((old) =>
+											old.map((value) =>
+												key(value) === key(option)
+													? { ...value, copy: checked === true }
+													: value,
+											),
+										);
+										setPreview(null);
+									}}
+								/>
+								<Label htmlFor={copyId} className="font-normal">
+									{copyLabel}
+								</Label>
+							</div>
+						);
+					})}
 			</fieldset>
 			{error && (
-				<p role="alert" className="text-destructive">
-					{error}
-				</p>
+				<Alert variant="destructive">
+					<AlertDescription>{error}</AlertDescription>
+				</Alert>
 			)}
 			<Button
 				disabled={busy || targets.length === 0}

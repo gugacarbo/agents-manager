@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { ArrowUpRight, FolderOpen, FolderPlus } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import {
 	EmptyState,
 	ErrorState,
@@ -9,9 +9,12 @@ import {
 } from "@/components/patterns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { type Project, projects } from "@/lib/projects";
 
 export function ProjectsPage({ preview = false }: { preview?: boolean }) {
+	const pathInputId = useId();
 	const [items, setItems] = useState<Project[]>([]);
 	const [path, setPath] = useState("");
 	const [error, setError] = useState("");
@@ -74,16 +77,17 @@ export function ProjectsPage({ preview = false }: { preview?: boolean }) {
 						onSubmit={(event) => void add(event)}
 						className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4 sm:p-5"
 					>
-						<label className="flex w-full min-w-0 flex-col gap-2 text-sm font-medium sm:flex-1">
-							Project folder path
-							<input
-								className="min-h-10 rounded-md border border-input bg-background px-3 font-mono text-xs font-normal placeholder:text-muted-foreground"
+						<div className="flex w-full min-w-0 flex-col gap-2 sm:flex-1">
+							<Label htmlFor={pathInputId}>Project folder path</Label>
+							<Input
+								id={pathInputId}
+								className="h-10 font-mono text-xs"
 								value={path}
 								onChange={(event) => setPath(event.target.value)}
 								placeholder="/home/user/project"
 								required
 							/>
-						</label>
+						</div>
 						<Button type="submit" className="h-10">
 							<FolderPlus className="size-4" aria-hidden="true" />
 							Add project

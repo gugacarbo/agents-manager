@@ -1,9 +1,8 @@
-use agents_manager_core::claude_desktop_quotas::{
+use agents_manager_claude_accounts::desktop_quotas::{
     DesktopQuotaError, DesktopQuotaProfile, DesktopQuotaProfiles, DesktopQuotaRefresh,
-    source::{LinuxDesktopQuotaSource, ensure_closed},
+    source::LinuxDesktopQuotaSource,
 };
 use std::{
-    os::unix::fs::DirBuilderExt,
     path::PathBuf,
     sync::{Arc, OnceLock},
 };
@@ -11,6 +10,7 @@ use std::{
 pub(crate) fn private_store() -> Result<PathBuf, agents_manager_core::error::CoreError> {
     Ok(super::data_dir()?.join("claude-desktop-quotas"))
 }
+
 fn service() -> Result<&'static DesktopQuotaProfiles, DesktopQuotaError> {
     static SERVICE: OnceLock<DesktopQuotaProfiles> = OnceLock::new();
     if let Some(service) = SERVICE.get() {
@@ -41,16 +41,19 @@ fn service() -> Result<&'static DesktopQuotaProfiles, DesktopQuotaError> {
         )
     }))
 }
+
 #[tauri::command]
 #[specta::specta]
 pub fn list_claude_desktop_quota_profiles() -> Result<Vec<DesktopQuotaProfile>, DesktopQuotaError> {
     service()?.list()
 }
+
 #[tauri::command]
 #[specta::specta]
 pub fn create_claude_desktop_quota_profile() -> Result<DesktopQuotaProfile, DesktopQuotaError> {
     service()?.create()
 }
+
 #[tauri::command]
 #[specta::specta]
 pub async fn open_claude_desktop_quota_login(profile_id: String) -> Result<(), DesktopQuotaError> {
@@ -59,42 +62,30 @@ pub async fn open_claude_desktop_quota_login(profile_id: String) -> Result<(), D
         if profile_id == "default" {
             return Err(DesktopQuotaError::SourceUnavailable);
         }
-        static LOGIN_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-        let _guard = LOGIN_LOCK
-            .lock()
-            .map_err(|_| DesktopQuotaError::StorageUnavailable)?;
-        ensure_closed()?;
-        let xdg = dir.join("xdg");
-        let mut command = std::process::Command::new("claude-desktop");
-        for (var, name) in [
-            ("XDG_CONFIG_HOME", "config"),
-            ("XDG_DATA_HOME", "data"),
-            ("XDG_CACHE_HOME", "cache"),
-            ("XDG_STATE_HOME", "state"),
-        ] {
-            let path = xdg.join(name);
-            std::fs::DirBuilder::new()
-                .recursive(true)
-                .mode(0o700)
-                .create(&path)
-                .map_err(|_| DesktopQuotaError::StorageUnavailable)?;
-            command.env(var, path);
-        }
-        let mut child = command
-            .env_remove("CLAUDE_USER_DATA_DIR")
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .spawn()
-            .map_err(|_| DesktopQuotaError::SourceUnavailable)?;
-        std::thread::spawn(move || {
-            let _ = child.wait();
-        });
-        Ok(())
+        let store = private_store().map_err(|_| DesktopQuotaError::StorageUnavailable)?;
+        crate::claude_desktop_launcher::launch_login(&store, &dir)
     })
     .await
     .map_err(|_| DesktopQuotaError::SourceUnavailable)?
 }
+
+#[tauri::command]
+#[specta::specta]
+pub async fn open_claude_desktop_quota_profile(
+    profile_id: String,
+) -> Result<(), DesktopQuotaError> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let profiles = service()?;
+        profiles.ensure_linked(&profile_id)?;
+        let dir = profiles.profile_dir(&profile_id)?;
+        let xdg = (profile_id != "default").then(|| dir.join("xdg"));
+        let store = private_store().map_err(|_| DesktopQuotaError::StorageUnavailable)?;
+        crate::claude_desktop_launcher::launch_authenticated_profile(&store, xdg.as_deref())
+    })
+    .await
+    .map_err(|_| DesktopQuotaError::SourceUnavailable)?
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn link_claude_desktop_quota_account(
@@ -104,6 +95,7 @@ pub async fn link_claude_desktop_quota_account(
         .await
         .map_err(|_| DesktopQuotaError::SourceUnavailable)?
 }
+
 #[tauri::command]
 #[specta::specta]
 pub async fn refresh_claude_desktop_quota(

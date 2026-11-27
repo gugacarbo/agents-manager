@@ -33,23 +33,55 @@ function stripCommentsPreservingLines(source: string): string {
 		.replace(/\/\/[^\n]*/g, "");
 }
 
-function extractImportSpecifiers(
-	source: string,
-): Array<{ specifier: string; line: number }> {
+type ImportReference = {
+	specifier: string;
+	line: number;
+	isTypeOnly: boolean;
+};
+
+function isTypeOnlyClause(clause: string): boolean {
+	const trimmed = clause.trim();
+	if (/^type(?:\s+|\{)/.test(trimmed)) {
+		return true;
+	}
+	if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+		const inner = trimmed.slice(1, -1).trim();
+		if (inner === "") {
+			return true;
+		}
+		return inner
+			.split(",")
+			.map((part) => part.trim())
+			.filter((part) => part.length > 0)
+			.every((part) => /^type\s+/.test(part));
+	}
+	return false;
+}
+
+function extractImportSpecifiers(source: string): ImportReference[] {
 	const cleaned = stripCommentsPreservingLines(source);
-	const results: Array<{ specifier: string; line: number }> = [];
-	const patterns = [
-		/\b(?:import|export)\s+(?:type\s+)?[\s\S]*?\bfrom\s*["']([^"']+)["']/g,
+	const results: ImportReference[] = [];
+	const fromPattern =
+		/\b(?:import|export)\s+((?:type\s+)?(?:\*(?:\s+as\s+\w+)?|\{[^}]*\}|\w+(?:\s*,\s*(?:\{[^}]*\}|\*\s+as\s+\w+))?))\s*\bfrom\s*["']([^"']+)["']/g;
+	for (const match of cleaned.matchAll(fromPattern)) {
+		const clause = match[1] ?? "";
+		const specifier = match[2];
+		const index = match.index ?? 0;
+		const line = cleaned.slice(0, index).split("\n").length;
+		results.push({ specifier, line, isTypeOnly: isTypeOnlyClause(clause) });
+	}
+
+	const valuePatterns = [
 		/\bimport\s*["']([^"']+)["']/g,
 		/\b(?:import|require)\s*\(\s*["']([^"']+)["']\s*\)/g,
 	];
 
-	for (const pattern of patterns) {
+	for (const pattern of valuePatterns) {
 		for (const match of cleaned.matchAll(pattern)) {
 			const specifier = match[1];
 			const index = match.index ?? 0;
 			const line = cleaned.slice(0, index).split("\n").length;
-			results.push({ specifier, line });
+			results.push({ specifier, line, isTypeOnly: false });
 		}
 	}
 	return results;
@@ -60,7 +92,7 @@ function getFeatureName(relPath: string): string | null {
 	return match ? match[1] : null;
 }
 
-function isTauriCoreRestricted(relPath: string): boolean {
+function isIpcRestricted(relPath: string): boolean {
 	return (
 		relPath === "src/router.tsx" ||
 		relPath.startsWith("src/components/") ||
@@ -68,13 +100,34 @@ function isTauriCoreRestricted(relPath: string): boolean {
 	);
 }
 
+function isBindingsTauriSpecifier(specifier: string, absPath: string): boolean {
+	if (
+		specifier === "@/bindings/tauri" ||
+		specifier.startsWith("@/bindings/tauri/") ||
+		specifier === "@/bindings" ||
+		specifier.startsWith("@/bindings/")
+	) {
+		return true;
+	}
+	if (specifier.startsWith(".")) {
+		const resolved = toPosix(
+			path.relative(ROOT, path.resolve(path.dirname(absPath), specifier)),
+		);
+		return /^src\/bindings(?:\/|$)/.test(resolved);
+	}
+	return false;
+}
+
 function checkFile(absPath: string): string[] {
 	const relPath = toPosix(path.relative(ROOT, absPath));
 	const ownFeature = getFeatureName(relPath);
 	const source = fs.readFileSync(absPath, "utf8");
 	const violations: string[] = [];
+	const ipcRestricted = isIpcRestricted(relPath);
 
-	for (const { specifier, line } of extractImportSpecifiers(source)) {
+	for (const { specifier, line, isTypeOnly } of extractImportSpecifiers(
+		source,
+	)) {
 		const aliasMatch = /^@\/features\/([^/]+)\/(.+)$/.exec(specifier);
 		if (aliasMatch) {
 			const targetFeature = aliasMatch[1];
@@ -99,12 +152,22 @@ function checkFile(absPath: string): string[] {
 		}
 
 		if (
-			isTauriCoreRestricted(relPath) &&
+			ipcRestricted &&
 			(specifier === "@tauri-apps/api/core" ||
 				specifier.startsWith("@tauri-apps/api/core/"))
 		) {
 			violations.push(
 				`${relPath}:${line}: direct import of "${specifier}" is forbidden in UI/router layers; route IPC through src/bindings/ or src/lib/.`,
+			);
+		}
+
+		if (
+			ipcRestricted &&
+			!isTypeOnly &&
+			isBindingsTauriSpecifier(specifier, absPath)
+		) {
+			violations.push(
+				`${relPath}:${line}: non-type import of "${specifier}" is forbidden in UI/router layers; route IPC through src/lib/.`,
 			);
 		}
 	}

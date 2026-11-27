@@ -12,26 +12,52 @@ import {
 	useNavigate,
 } from "@tanstack/react-router";
 import {
-	ChevronRight,
 	FileCode2,
 	FileText,
 	FolderOpen,
 	LayoutGrid,
 	Library,
 	Monitor,
-	Terminal,
 	Users,
 } from "lucide-react";
+import { AppPreferencesMenu } from "@/components/app-preferences-menu";
+import { BrandMark } from "@/components/brand-mark";
 import { DesktopTitleBar } from "@/components/desktop-title-bar";
 import {
 	RouteErrorFallback,
 	RouteNotFoundFallback,
 } from "@/components/global-route-fallback";
 import { ThemeProvider } from "@/components/theme-provider";
-import { ThemeToggle } from "@/components/theme-toggle";
+import {
+	Breadcrumb,
+	BreadcrumbItem,
+	BreadcrumbList,
+	BreadcrumbPage,
+	BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { CommandPalette } from "@/components/ui/command-palette";
+import {
+	Sidebar,
+	SidebarContent,
+	SidebarFooter,
+	SidebarGroup,
+	SidebarGroupLabel,
+	SidebarHeader,
+	SidebarInset,
+	SidebarMenu,
+	SidebarMenuItem,
+	SidebarMenuLabel,
+	SidebarProvider,
+	SidebarTrigger,
+} from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { AgentsPage, agentsQueryKey } from "@/features/agents";
 import { ClaudeAccountProfiles } from "@/features/claude-accounts";
 import { AgentConfigsPage } from "@/features/configs";
@@ -44,7 +70,7 @@ import { isTauriRuntime } from "@/lib/agents";
 import { agentKindSchema } from "@/lib/schemas";
 
 const navLink =
-	"flex min-h-10 items-center gap-2.5 rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground data-[section-active=true]:bg-selection data-[section-active=true]:text-selection-foreground";
+	"flex min-h-10 items-center gap-2.5 rounded-md px-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground data-[section-active=true]:bg-selection data-[section-active=true]:text-selection-foreground group-data-[state=collapsed]/sidebar:md:min-h-9";
 
 const navigation = [
 	{ to: "/", label: "Agents", icon: LayoutGrid },
@@ -78,121 +104,157 @@ function RootLayout() {
 	const isConfiguration =
 		section === "agents" || pathname.startsWith("/projects/");
 
+	const toolbarActions = (
+		<>
+			<CommandPalette
+				showDemo={!desktop}
+				onNavigate={(path) => {
+					void navigate({ to: path });
+				}}
+				onRefreshAgents={() => {
+					void queryClient.invalidateQueries(
+						{ queryKey: agentsQueryKey },
+						{ cancelRefetch: false },
+					);
+					void navigate({ to: "/" });
+				}}
+			/>
+			<AppPreferencesMenu showTrayOption={desktop} />
+		</>
+	);
+
+	const breadcrumb = (
+		<Breadcrumb>
+			<BreadcrumbList className="text-xs sm:gap-1.5">
+				<BreadcrumbItem>Workspace</BreadcrumbItem>
+				{currentSection && (
+					<>
+						<BreadcrumbSeparator />
+						<BreadcrumbItem>
+							{isConfiguration ? (
+								<span>{currentSection.label}</span>
+							) : (
+								<BreadcrumbPage className="font-medium">
+									{currentSection.label}
+								</BreadcrumbPage>
+							)}
+						</BreadcrumbItem>
+					</>
+				)}
+				{isConfiguration && (
+					<>
+						<BreadcrumbSeparator />
+						<BreadcrumbItem>
+							<BreadcrumbPage className="font-medium">
+								Configuration
+							</BreadcrumbPage>
+						</BreadcrumbItem>
+					</>
+				)}
+			</BreadcrumbList>
+		</Breadcrumb>
+	);
+
 	return (
 		<ThemeProvider>
-			<div
-				className="workspace-shell min-h-screen pt-(--title-bar-height) md:grid"
-				data-desktop={desktop}
-			>
-				<Button
-					type="button"
-					className="sr-only z-20 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
-					onClick={() => {
-						document.getElementById("main-content")?.focus();
-					}}
+			<TooltipProvider>
+				<SidebarProvider
+					className="workspace-shell data-[desktop=true]:h-screen data-[desktop=true]:overflow-hidden"
+					data-desktop={desktop}
 				>
-					Skip to content
-				</Button>
-				{desktop ? <DesktopTitleBar /> : null}
-				<aside className="flex flex-col border-b border-border bg-sidebar md:sticky md:top-(--title-bar-height) md:h-(--workspace-sidebar-height) md:overflow-y-auto md:border-r md:border-b-0">
-					<div className="flex min-h-16 items-center gap-3 px-4 md:px-5">
-						<span className="grid size-8 shrink-0 place-items-center rounded-md bg-primary text-primary-foreground">
-							<Terminal className="size-4.5" aria-hidden="true" />
-						</span>
-						<span className="text-sm font-semibold tracking-tight">
-							Agents Manager
-						</span>
-					</div>
-					<nav
-						aria-label="Primary navigation"
-						className="flex flex-wrap gap-1 px-3 pb-3 md:flex-col md:px-4 md:pt-5"
+					<Button
+						type="button"
+						className="sr-only z-20 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
+						onClick={() => {
+							document.getElementById("main-content")?.focus();
+						}}
 					>
-						<p className="mb-2 hidden px-3 text-xs font-medium text-muted-foreground md:block">
-							Workspace
-						</p>
-						{links.map(({ to, label, icon: Icon }) => (
-							<Link
-								key={to}
-								to={to}
-								activeOptions={{ exact: true }}
-								data-section-active={to === activeSection}
-								className={navLink}
-							>
-								<Icon className="size-4 shrink-0" aria-hidden="true" />
-								{label}
-							</Link>
-						))}
-					</nav>
-					<div className="mt-auto hidden items-center gap-3 border-t border-border px-5 py-4 md:flex">
-						<Monitor
-							className="size-4 text-muted-foreground"
-							aria-hidden="true"
-						/>
-						<span className="text-xs text-muted-foreground">
-							{desktop ? "Local desktop" : "Browser preview"}
-						</span>
-					</div>
-				</aside>
-				<div className="min-w-0">
-					<header className="flex min-h-16 flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-2 sm:px-8 lg:px-12">
-						<div className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-muted-foreground sm:text-sm">
-							<span>Workspace</span>
-							{currentSection && (
-								<>
-									<ChevronRight className="size-3.5" aria-hidden="true" />
-									<span
-										className={
-											isConfiguration
-												? undefined
-												: "font-medium text-foreground"
-										}
-									>
-										{currentSection.label}
-									</span>
-								</>
-							)}
-							{isConfiguration && (
-								<>
-									<ChevronRight className="size-3.5" aria-hidden="true" />
-									<span className="font-medium text-foreground">
-										Configuration
-									</span>
-								</>
-							)}
-						</div>
-						<div className="flex items-center gap-2">
-							<ThemeToggle />
-							<CommandPalette
-								showDemo={!desktop}
-								onNavigate={(path) => {
-									void navigate({ to: path });
-								}}
-								onRefreshAgents={() => {
-									void queryClient.invalidateQueries(
-										{ queryKey: agentsQueryKey },
-										{ cancelRefetch: false },
-									);
-									void navigate({ to: "/" });
-								}}
+						Skip to content
+					</Button>
+					<Sidebar>
+						<SidebarHeader data-tauri-drag-region={desktop ? "" : undefined}>
+							<BrandMark className="pointer-events-none size-8 shrink-0" />
+							<SidebarMenuLabel className="pointer-events-none text-sm font-semibold tracking-tight">
+								Agents Manager
+							</SidebarMenuLabel>
+						</SidebarHeader>
+						<SidebarContent aria-label="Primary navigation">
+							<SidebarGroup>
+								<SidebarGroupLabel>Workspace</SidebarGroupLabel>
+								<SidebarMenu>
+									{links.map(({ to, label, icon: Icon }) => (
+										<SidebarMenuItem key={to}>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<Link
+														to={to}
+														activeOptions={{ exact: true }}
+														data-section-active={to === activeSection}
+														className={navLink}
+													>
+														<Icon
+															className="size-4 shrink-0"
+															aria-hidden="true"
+														/>
+														<SidebarMenuLabel>{label}</SidebarMenuLabel>
+													</Link>
+												</TooltipTrigger>
+												<TooltipContent side="right">{label}</TooltipContent>
+											</Tooltip>
+										</SidebarMenuItem>
+									))}
+								</SidebarMenu>
+							</SidebarGroup>
+						</SidebarContent>
+						<SidebarFooter>
+							<Monitor
+								className="size-4 shrink-0 text-muted-foreground"
+								aria-hidden="true"
 							/>
+							<SidebarMenuLabel className="text-xs text-muted-foreground">
+								{desktop ? "Local desktop" : "Browser preview"}
+							</SidebarMenuLabel>
+						</SidebarFooter>
+					</Sidebar>
+					<SidebarInset>
+						{desktop ? (
+							<DesktopTitleBar
+								leading={<SidebarTrigger />}
+								breadcrumb={breadcrumb}
+								actions={toolbarActions}
+								offsetSidebar
+							/>
+						) : null}
+						<div className="min-h-0 flex-1 overflow-y-auto">
+							{desktop ? null : (
+								<header className="flex min-h-16 flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-2 sm:px-8 lg:px-12">
+									<div className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-muted-foreground sm:text-sm">
+										<SidebarTrigger className="mr-1" />
+										{breadcrumb}
+									</div>
+									<div className="flex items-center gap-2">
+										{toolbarActions}
+									</div>
+								</header>
+							)}
+							<main
+								id="main-content"
+								tabIndex={-1}
+								className="mx-auto max-w-7xl px-4 py-7 focus-visible:-outline-offset-2 sm:px-8 sm:py-9 lg:px-12 lg:py-11"
+							>
+								{isClaudeAccounts ? (
+									<Outlet />
+								) : (
+									<EnvironmentSwitcher>
+										<Outlet />
+									</EnvironmentSwitcher>
+								)}
+							</main>
 						</div>
-					</header>
-					<main
-						id="main-content"
-						tabIndex={-1}
-						className="mx-auto max-w-7xl px-4 py-7 focus-visible:-outline-offset-2 sm:px-8 sm:py-9 lg:px-12 lg:py-11"
-					>
-						{isClaudeAccounts ? (
-							<Outlet />
-						) : (
-							<EnvironmentSwitcher>
-								<Outlet />
-							</EnvironmentSwitcher>
-						)}
-					</main>
-				</div>
-				<Toaster />
-			</div>
+					</SidebarInset>
+				</SidebarProvider>
+			</TooltipProvider>
+			<Toaster />
 		</ThemeProvider>
 	);
 }
@@ -295,5 +357,11 @@ export function createAppRouter(history?: RouterHistory) {
 		history: history ?? createHashHistory(),
 		defaultNotFoundComponent: DefaultNotFound,
 		defaultErrorComponent: RouteErrorFallback,
+	});
+}
+
+if (import.meta.hot) {
+	import.meta.hot.accept(() => {
+		window.location.reload();
 	});
 }

@@ -79,3 +79,9 @@ export function useTheme(): ThemeContextValue {
 	}
 	return context;
 }
+
+if (import.meta.hot) {
+	import.meta.hot.accept(() => {
+		window.location.reload();
+	});
+}

@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 export function SettingsForm({
 	settings,
 	onChange,
@@ -7,6 +9,7 @@ export function SettingsForm({
 	settings: Record<string, string>;
 	onChange: (settings: Record<string, string>) => void;
 }) {
+	const id = useId();
 	const [key, setKey] = useState("");
 	const [reveal, setReveal] = useState(false);
 	return (
@@ -21,27 +24,28 @@ export function SettingsForm({
 				Values use JSON syntax. Existing keys and nested objects are preserved.
 			</p>
 			{Object.entries(settings).map(([name, value]) => (
-				<label key={name} className="block text-sm">
-					{name}
-					<input
-						className="min-h-9 w-full rounded-md border border-input bg-background px-3 font-mono"
+				<div key={name} className="space-y-1.5">
+					<Label htmlFor={`${id}-setting-${name}`}>{name}</Label>
+					<Input
+						id={`${id}-setting-${name}`}
+						className="font-mono"
 						type={reveal ? "text" : "password"}
 						value={value}
 						onChange={(event) =>
 							onChange({ ...settings, [name]: event.target.value })
 						}
 					/>
-				</label>
+				</div>
 			))}
 			<div className="flex items-end gap-2">
-				<label className="flex-1 text-sm">
-					New setting key
-					<input
-						className="min-h-9 w-full rounded-md border border-input bg-background px-3"
+				<div className="flex-1 space-y-1.5">
+					<Label htmlFor={`${id}-new-key`}>New setting key</Label>
+					<Input
+						id={`${id}-new-key`}
 						value={key}
 						onChange={(event) => setKey(event.target.value)}
 					/>
-				</label>
+				</div>
 				<Button
 					variant="outline"
 					disabled={!key.trim() || key in settings}

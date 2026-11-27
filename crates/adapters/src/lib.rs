@@ -5,7 +5,9 @@ pub mod codex;
 use std::path::Path;
 
 use agents_manager_core::build_agent_summary;
-use agents_manager_core::domain::{AgentKind, AgentSummary, ConfigFileEntry};
+use agents_manager_core::domain::{
+    AgentKind, AgentSummary, ConfigCategory, ConfigFileEntry, ConfigFormat, ConfigScope,
+};
 
 /// Adapter interface for detecting and inspecting a specific coding agent's configuration.
 pub trait AgentAdapter: Send + Sync {
@@ -23,6 +25,15 @@ pub trait AgentAdapter: Send + Sync {
 
     /// Discovers native configuration within a project.
     fn list_project_configs(&self, root: &Path) -> Vec<ConfigFileEntry>;
+
+    /// Resolves a canonical sync destination for the given scope, root, category, and slug.
+    fn resolve_sync_target(
+        &self,
+        scope: ConfigScope,
+        root: &Path,
+        category: ConfigCategory,
+        slug: &str,
+    ) -> Option<ConfigFileEntry>;
 }
 
 /// Returns instances of all supported agent adapters.
@@ -76,70 +87,18 @@ pub fn list_project_configs(kind: AgentKind, root: &Path) -> Vec<ConfigFileEntry
 /// Resolve a canonical sync destination without accepting caller-provided paths.
 pub fn resolve_sync_target(
     agent: AgentKind,
-    scope: agents_manager_core::domain::ConfigScope,
+    scope: ConfigScope,
     root: &Path,
-    category: agents_manager_core::domain::ConfigCategory,
+    category: ConfigCategory,
     slug: &str,
 ) -> Option<ConfigFileEntry> {
-    use agents_manager_core::domain::{ConfigCategory as C, ConfigFormat as F, ConfigScope as S};
-    if slug.is_empty()
-        || !slug
-            .bytes()
-            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
-    {
+    if !is_valid_slug(slug) {
         return None;
     }
-    let (relative, format) = match (agent, scope, category) {
-        (AgentKind::ClaudeCode, S::Global, C::Mcps) => (".claude.json".into(), F::Json),
-        (AgentKind::ClaudeCode, S::Project, C::Mcps) => (".mcp.json".into(), F::Json),
-        (AgentKind::ClaudeCode, _, C::Settings) => (".claude/settings.json".into(), F::Json),
-        (AgentKind::ClaudeCode, S::Global, C::Rules) => (".claude/CLAUDE.md".into(), F::Markdown),
-        (AgentKind::ClaudeCode, S::Project, C::Rules) => ("CLAUDE.md".into(), F::Markdown),
-        (AgentKind::ClaudeCode, _, C::Skills) => {
-            (format!(".claude/skills/{slug}/SKILL.md"), F::Markdown)
-        }
-        (AgentKind::Codex, _, C::Mcps | C::Settings) => (".codex/config.toml".into(), F::Toml),
-        (AgentKind::Codex, S::Global, C::Rules) => (".codex/AGENTS.md".into(), F::Markdown),
-        (AgentKind::Codex, S::Project, C::Rules) => ("AGENTS.md".into(), F::Markdown),
-        (AgentKind::Codex, S::Global, C::Skills) => {
-            (format!(".codex/skills/{slug}/SKILL.md"), F::Markdown)
-        }
-        (AgentKind::Codex, S::Project, C::Skills) => {
-            (format!(".agents/skills/{slug}/SKILL.md"), F::Markdown)
-        }
-        (AgentKind::Antigravity, S::Global, C::Mcps) => {
-            (".gemini/config/mcp_config.json".into(), F::Json)
-        }
-        (AgentKind::Antigravity, S::Project, C::Mcps) => {
-            (".gemini/mcp_config.json".into(), F::Json)
-        }
-        (AgentKind::Antigravity, S::Global, C::Settings) => (
-            if root.join(".gemini/config/config.json").is_file()
-                || !root.join(".gemini/settings.json").is_file()
-            {
-                ".gemini/config/config.json"
-            } else {
-                ".gemini/settings.json"
-            }
-            .into(),
-            F::Json,
-        ),
-        (AgentKind::Antigravity, S::Project, C::Settings) => {
-            (".gemini/settings.json".into(), F::Json)
-        }
-        (AgentKind::Antigravity, S::Global, C::Rules) => (".gemini/GEMINI.md".into(), F::Markdown),
-        (AgentKind::Antigravity, S::Project, C::Rules) => (".gemini/GEMINI.md".into(), F::Markdown),
-        (AgentKind::Antigravity, S::Global, C::Skills) => (
-            format!(".gemini/config/skills/{slug}/SKILL.md"),
-            F::Markdown,
-        ),
-        (AgentKind::Antigravity, S::Project, C::Skills) => {
-            (format!(".gemini/skills/{slug}/SKILL.md"), F::Markdown)
-        }
-    };
-    let mut entries = Vec::new();
-    add(&mut entries, root, agent, category, format, &relative);
-    entries.pop()
+    all_adapters()
+        .into_iter()
+        .find(|a| a.kind() == agent)
+        .and_then(|a| a.resolve_sync_target(scope, root, category, slug))
 }
 
 /// Reject symlink traversal in destination ancestors, while leaving the final link
@@ -199,16 +158,22 @@ fn safe_relative(root: &Path, path: &Path) -> bool {
     true
 }
 
-fn add(
-    entries: &mut Vec<ConfigFileEntry>,
-    home: &Path,
+pub(crate) fn is_valid_slug(slug: &str) -> bool {
+    !slug.is_empty()
+        && slug
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
+}
+
+pub(crate) fn build_config_entry(
+    root: &Path,
     agent: AgentKind,
-    category: agents_manager_core::domain::ConfigCategory,
-    format: agents_manager_core::domain::ConfigFormat,
+    category: ConfigCategory,
+    format: ConfigFormat,
     relative: &str,
-) {
-    let path = home.join(relative);
-    entries.push(agents_manager_core::domain::ConfigFileEntry {
+) -> ConfigFileEntry {
+    let path = root.join(relative);
+    ConfigFileEntry {
         agent,
         category,
         format,
@@ -218,14 +183,43 @@ fn add(
         ),
         path: path.to_string_lossy().into_owned(),
         exists: path.is_file(),
-    });
+    }
 }
 
-fn add_children(
+pub(crate) fn build_skill_sync_entry(
+    root: &Path,
+    agent: AgentKind,
+    skills_dir: &str,
+    slug: &str,
+) -> Option<ConfigFileEntry> {
+    if !is_valid_slug(slug) {
+        return None;
+    }
+    Some(build_config_entry(
+        root,
+        agent,
+        ConfigCategory::Skills,
+        ConfigFormat::Markdown,
+        &format!("{skills_dir}/{slug}/SKILL.md"),
+    ))
+}
+
+pub(crate) fn add(
     entries: &mut Vec<ConfigFileEntry>,
     home: &Path,
     agent: AgentKind,
-    category: agents_manager_core::domain::ConfigCategory,
+    category: ConfigCategory,
+    format: ConfigFormat,
+    relative: &str,
+) {
+    entries.push(build_config_entry(home, agent, category, format, relative));
+}
+
+pub(crate) fn add_children(
+    entries: &mut Vec<ConfigFileEntry>,
+    home: &Path,
+    agent: AgentKind,
+    category: ConfigCategory,
     relative: &str,
     skills: bool,
 ) {
@@ -254,7 +248,7 @@ fn add_children(
             home,
             agent,
             category,
-            agents_manager_core::domain::ConfigFormat::Markdown,
+            ConfigFormat::Markdown,
             &relative_path.to_string_lossy(),
         );
     }
@@ -331,5 +325,257 @@ mod tests {
                 .unwrap()
                 .ends_with(".gemini/antigravity")
         );
+    }
+
+    #[test]
+    fn resolve_sync_target_maps_all_agent_scope_category_pairs() {
+        let root = tempdir().unwrap();
+        let slug = "my_skill-1";
+        let cases = [
+            (
+                AgentKind::ClaudeCode,
+                ConfigScope::Global,
+                ConfigCategory::Mcps,
+                ".claude.json",
+                ConfigFormat::Json,
+            ),
+            (
+                AgentKind::ClaudeCode,
+                ConfigScope::Project,
+                ConfigCategory::Mcps,
+                ".mcp.json",
+                ConfigFormat::Json,
+            ),
+            (
+                AgentKind::ClaudeCode,
+                ConfigScope::Global,
+                ConfigCategory::Settings,
+                ".claude/settings.json",
+                ConfigFormat::Json,
+            ),
+            (
+                AgentKind::ClaudeCode,
+                ConfigScope::Project,
+                ConfigCategory::Settings,
+                ".claude/settings.json",
+                ConfigFormat::Json,
+            ),
+            (
+                AgentKind::ClaudeCode,
+                ConfigScope::Global,
+                ConfigCategory::Rules,
+                ".claude/CLAUDE.md",
+                ConfigFormat::Markdown,
+            ),
+            (
+                AgentKind::ClaudeCode,
+                ConfigScope::Project,
+                ConfigCategory::Rules,
+                "CLAUDE.md",
+                ConfigFormat::Markdown,
+            ),
+            (
+                AgentKind::ClaudeCode,
+                ConfigScope::Global,
+                ConfigCategory::Skills,
+                ".claude/skills/my_skill-1/SKILL.md",
+                ConfigFormat::Markdown,
+            ),
+            (
+                AgentKind::ClaudeCode,
+                ConfigScope::Project,
+                ConfigCategory::Skills,
+                ".claude/skills/my_skill-1/SKILL.md",
+                ConfigFormat::Markdown,
+            ),
+            (
+                AgentKind::Codex,
+                ConfigScope::Global,
+                ConfigCategory::Mcps,
+                ".codex/config.toml",
+                ConfigFormat::Toml,
+            ),
+            (
+                AgentKind::Codex,
+                ConfigScope::Project,
+                ConfigCategory::Mcps,
+                ".codex/config.toml",
+                ConfigFormat::Toml,
+            ),
+            (
+                AgentKind::Codex,
+                ConfigScope::Global,
+                ConfigCategory::Settings,
+                ".codex/config.toml",
+                ConfigFormat::Toml,
+            ),
+            (
+                AgentKind::Codex,
+                ConfigScope::Project,
+                ConfigCategory::Settings,
+                ".codex/config.toml",
+                ConfigFormat::Toml,
+            ),
+            (
+                AgentKind::Codex,
+                ConfigScope::Global,
+                ConfigCategory::Rules,
+                ".codex/AGENTS.md",
+                ConfigFormat::Markdown,
+            ),
+            (
+                AgentKind::Codex,
+                ConfigScope::Project,
+                ConfigCategory::Rules,
+                "AGENTS.md",
+                ConfigFormat::Markdown,
+            ),
+            (
+                AgentKind::Codex,
+                ConfigScope::Global,
+                ConfigCategory::Skills,
+                ".codex/skills/my_skill-1/SKILL.md",
+                ConfigFormat::Markdown,
+            ),
+            (
+                AgentKind::Codex,
+                ConfigScope::Project,
+                ConfigCategory::Skills,
+                ".agents/skills/my_skill-1/SKILL.md",
+                ConfigFormat::Markdown,
+            ),
+            (
+                AgentKind::Antigravity,
+                ConfigScope::Global,
+                ConfigCategory::Mcps,
+                ".gemini/config/mcp_config.json",
+                ConfigFormat::Json,
+            ),
+            (
+                AgentKind::Antigravity,
+                ConfigScope::Project,
+                ConfigCategory::Mcps,
+                ".gemini/mcp_config.json",
+                ConfigFormat::Json,
+            ),
+            (
+                AgentKind::Antigravity,
+                ConfigScope::Global,
+                ConfigCategory::Settings,
+                ".gemini/config/config.json",
+                ConfigFormat::Json,
+            ),
+            (
+                AgentKind::Antigravity,
+                ConfigScope::Project,
+                ConfigCategory::Settings,
+                ".gemini/settings.json",
+                ConfigFormat::Json,
+            ),
+            (
+                AgentKind::Antigravity,
+                ConfigScope::Global,
+                ConfigCategory::Rules,
+                ".gemini/GEMINI.md",
+                ConfigFormat::Markdown,
+            ),
+            (
+                AgentKind::Antigravity,
+                ConfigScope::Project,
+                ConfigCategory::Rules,
+                ".gemini/GEMINI.md",
+                ConfigFormat::Markdown,
+            ),
+            (
+                AgentKind::Antigravity,
+                ConfigScope::Global,
+                ConfigCategory::Skills,
+                ".gemini/config/skills/my_skill-1/SKILL.md",
+                ConfigFormat::Markdown,
+            ),
+            (
+                AgentKind::Antigravity,
+                ConfigScope::Project,
+                ConfigCategory::Skills,
+                ".gemini/skills/my_skill-1/SKILL.md",
+                ConfigFormat::Markdown,
+            ),
+        ];
+
+        for (agent, scope, category, relative, format) in cases {
+            let entry = resolve_sync_target(agent, scope, root.path(), category, slug).unwrap();
+            assert_eq!(entry.agent, agent);
+            assert_eq!(entry.category, category);
+            assert_eq!(entry.format, format);
+            assert_eq!(entry.path, root.path().join(relative).to_string_lossy());
+        }
+    }
+
+    #[test]
+    fn resolve_sync_target_antigravity_global_settings_fallback() {
+        let root = tempdir().unwrap();
+
+        let default_entry = resolve_sync_target(
+            AgentKind::Antigravity,
+            ConfigScope::Global,
+            root.path(),
+            ConfigCategory::Settings,
+            "example",
+        )
+        .unwrap();
+        assert!(default_entry.path.ends_with(".gemini/config/config.json"));
+
+        fs::create_dir_all(root.path().join(".gemini")).unwrap();
+        fs::write(root.path().join(".gemini/settings.json"), "{}").unwrap();
+        let legacy_entry = resolve_sync_target(
+            AgentKind::Antigravity,
+            ConfigScope::Global,
+            root.path(),
+            ConfigCategory::Settings,
+            "example",
+        )
+        .unwrap();
+        assert!(legacy_entry.path.ends_with(".gemini/settings.json"));
+
+        fs::create_dir_all(root.path().join(".gemini/config")).unwrap();
+        fs::write(root.path().join(".gemini/config/config.json"), "{}").unwrap();
+        let config_entry = resolve_sync_target(
+            AgentKind::Antigravity,
+            ConfigScope::Global,
+            root.path(),
+            ConfigCategory::Settings,
+            "example",
+        )
+        .unwrap();
+        assert!(config_entry.path.ends_with(".gemini/config/config.json"));
+    }
+
+    #[test]
+    fn resolve_sync_target_rejects_invalid_slugs() {
+        let root = tempdir().unwrap();
+        for bad in ["", "../escape", "nested/skill", "UpperCase", "bad.dot"] {
+            assert!(
+                resolve_sync_target(
+                    AgentKind::ClaudeCode,
+                    ConfigScope::Global,
+                    root.path(),
+                    ConfigCategory::Skills,
+                    bad,
+                )
+                .is_none(),
+                "expected None for slug {bad:?}"
+            );
+            assert!(
+                resolve_sync_target(
+                    AgentKind::Codex,
+                    ConfigScope::Global,
+                    root.path(),
+                    ConfigCategory::Mcps,
+                    bad,
+                )
+                .is_none(),
+                "expected None for slug {bad:?}"
+            );
+        }
     }
 }

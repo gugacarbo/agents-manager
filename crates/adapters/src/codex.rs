@@ -1,10 +1,14 @@
 use std::path::Path;
 
 use agents_manager_core::domain::{
-    AgentKind, AgentSummary, ConfigCategory as C, ConfigFileEntry, ConfigFormat as F,
+    AgentKind, AgentSummary, ConfigCategory, ConfigCategory as C, ConfigFileEntry,
+    ConfigFormat as F, ConfigScope, ConfigScope as S,
 };
 
-use crate::{AgentAdapter, add, add_children, detect_first_existing_dir};
+use crate::{
+    AgentAdapter, add, add_children, build_config_entry, build_skill_sync_entry,
+    detect_first_existing_dir,
+};
 
 /// Adapter for OpenAI Codex CLI configuration under `~/.codex`.
 #[derive(Debug, Default, Clone, Copy)]
@@ -84,6 +88,33 @@ impl AgentAdapter for CodexAdapter {
         add_children(&mut entries, root, kind, C::Skills, ".agents/skills", true);
         add_children(&mut entries, root, kind, C::Skills, ".codex/skills", true);
         entries
+    }
+
+    fn resolve_sync_target(
+        &self,
+        scope: ConfigScope,
+        root: &Path,
+        category: ConfigCategory,
+        slug: &str,
+    ) -> Option<ConfigFileEntry> {
+        let (relative, format) = match (scope, category) {
+            (_, C::Mcps | C::Settings) => (".codex/config.toml", F::Toml),
+            (S::Global, C::Rules) => (".codex/AGENTS.md", F::Markdown),
+            (S::Project, C::Rules) => ("AGENTS.md", F::Markdown),
+            (S::Global, C::Skills) => {
+                return build_skill_sync_entry(root, self.kind(), ".codex/skills", slug);
+            }
+            (S::Project, C::Skills) => {
+                return build_skill_sync_entry(root, self.kind(), ".agents/skills", slug);
+            }
+        };
+        Some(build_config_entry(
+            root,
+            self.kind(),
+            category,
+            format,
+            relative,
+        ))
     }
 }
 

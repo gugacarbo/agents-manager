@@ -1,7 +1,7 @@
 #![cfg(target_os = "linux")]
 #![allow(clippy::unwrap_used)]
 
-use agents_manager_core::claude_accounts::{
+use agents_manager_claude_accounts::accounts::{
     AccountError, AccountState, ClaudeAccounts, ClaudePrograms, is_private_path,
 };
 use std::{

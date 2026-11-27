@@ -1,4 +1,4 @@
-use crate::{
+use agents_manager_core::{
     domain::{SshConnection, SshEnvironment, SshEnvironmentDraft, SshErrorKind, SshInventory},
     error::CoreError,
 };

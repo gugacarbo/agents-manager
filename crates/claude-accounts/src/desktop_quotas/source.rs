@@ -178,16 +178,16 @@ fn decrypt_cache(cache: &str) -> Result<Vec<u8>, DesktopQuotaError> {
                 .args(["10s", "secret-tool", "lookup", "application", "Claude"])
                 .stderr(Stdio::null())
                 .output()
-                .map_err(|_| DesktopQuotaError::StorageUnavailable)?;
+                .map_err(|_| DesktopQuotaError::KeyringUnavailable)?;
             if !output.status.success() || output.stdout.len() > 4096 {
-                return Err(DesktopQuotaError::StorageUnavailable);
+                return Err(DesktopQuotaError::KeyringUnavailable);
             }
             let mut password = output.stdout;
             if password.last() == Some(&b'\n') {
                 password.pop();
             }
             if password.is_empty() {
-                return Err(DesktopQuotaError::StorageUnavailable);
+                return Err(DesktopQuotaError::KeyringUnavailable);
             }
             password
         }

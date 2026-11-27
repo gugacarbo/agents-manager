@@ -1,5 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+	NativeSelect,
+	NativeSelectOption,
+} from "@/components/ui/native-select";
 import {
 	type EnvironmentDraft,
 	environments,
@@ -8,8 +15,6 @@ import {
 	validateEnvironment,
 } from "@/lib/environments";
 
-const inputClass =
-	"min-h-9 w-full rounded-md border border-input bg-background px-3";
 export function ConnectionForm({
 	initial,
 	onClose,
@@ -21,6 +26,7 @@ export function ConnectionForm({
 	onSaved: (item: SshEnvironment) => void;
 	onChange: () => void;
 }) {
+	const formId = useId();
 	const [name, setName] = useState(initial?.name ?? "");
 	const [mode, setMode] = useState<"alias" | "manual">(
 		initial?.connection.mode ?? "alias",
@@ -101,71 +107,74 @@ export function ConnectionForm({
 				Authentication and host key approval must be configured in OpenSSH
 				outside this app.
 			</p>
-			<label className="block text-sm">
-				Display name
-				<input
-					className={inputClass}
+			<div className="space-y-1.5">
+				<Label htmlFor={`${formId}-name`}>Display name</Label>
+				<Input
+					id={`${formId}-name`}
 					value={name}
 					onChange={(event) => {
 						changed();
 						setName(event.target.value);
 					}}
 				/>
-			</label>
-			<label className="block text-sm">
-				Connection mode
-				<select
-					className={inputClass}
+			</div>
+			<div className="space-y-1.5">
+				<Label htmlFor={`${formId}-mode`}>Connection mode</Label>
+				<NativeSelect
+					id={`${formId}-mode`}
+					wrapperClassName="w-full"
 					value={mode}
 					onChange={(event) => {
 						changed();
 						setMode(event.target.value as "alias" | "manual");
 					}}
 				>
-					<option value="alias">OpenSSH alias</option>
-					<option value="manual">Host, user and port</option>
-				</select>
-			</label>
+					<NativeSelectOption value="alias">OpenSSH alias</NativeSelectOption>
+					<NativeSelectOption value="manual">
+						Host, user and port
+					</NativeSelectOption>
+				</NativeSelect>
+			</div>
 			{mode === "alias" ? (
-				<label className="block text-sm">
-					SSH alias
-					<input
-						className={inputClass}
+				<div className="space-y-1.5">
+					<Label htmlFor={`${formId}-alias`}>SSH alias</Label>
+					<Input
+						id={`${formId}-alias`}
 						value={alias}
 						onChange={(event) => {
 							changed();
 							setAlias(event.target.value);
 						}}
 					/>
-				</label>
+				</div>
 			) : (
 				<div className="grid gap-2 sm:grid-cols-3">
-					<label className="text-sm">
-						Host
-						<input
-							className={inputClass}
+					<div className="space-y-1.5">
+						<Label htmlFor={`${formId}-host`}>Host</Label>
+						<Input
+							id={`${formId}-host`}
 							value={host}
 							onChange={(event) => {
 								changed();
 								setHost(event.target.value);
 							}}
 						/>
-					</label>
-					<label className="text-sm">
-						User
-						<input
-							className={inputClass}
+					</div>
+					<div className="space-y-1.5">
+						<Label htmlFor={`${formId}-user`}>User</Label>
+						<Input
+							id={`${formId}-user`}
 							value={user}
 							onChange={(event) => {
 								changed();
 								setUser(event.target.value);
 							}}
 						/>
-					</label>
-					<label className="text-sm">
-						Port
-						<input
-							className={inputClass}
+					</div>
+					<div className="space-y-1.5">
+						<Label htmlFor={`${formId}-port`}>Port</Label>
+						<Input
+							id={`${formId}-port`}
 							type="number"
 							min="1"
 							max="65535"
@@ -175,13 +184,13 @@ export function ConnectionForm({
 								setPort(event.target.value);
 							}}
 						/>
-					</label>
+					</div>
 				</div>
 			)}
 			{error && (
-				<p role="alert" className="text-destructive">
-					{error}
-				</p>
+				<Alert variant="destructive">
+					<AlertDescription>{error}</AlertDescription>
+				</Alert>
 			)}
 			{result && (
 				<p role="status">

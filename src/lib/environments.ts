@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { commands } from "@/bindings/tauri";
 import { isTauriRuntime } from "@/lib/agents";
+import { formatCoreErrorMessage } from "@/lib/ipc-errors";
 
 const connection = z.discriminatedUnion("mode", [
 	z.object({ mode: z.literal("alias"), alias: z.string() }),
@@ -36,30 +37,12 @@ export const environments = {
 	inspect: async (id: string) =>
 		inventory.parse(await commands.inspectSshEnvironment(id)),
 	message: (error: unknown) => {
-		const typed = z
-			.object({ SshError: z.object({ message: z.string(), kind: z.string() }) })
-			.safeParse(error);
-		if (typed.success) {
-			const { kind, message } = typed.data.SshError;
-			const hint: Record<string, string> = {
-				"host-key":
-					"Verify and approve the host key using OpenSSH outside this app.",
-				authentication:
-					"Configure non-interactive authentication in OpenSSH outside this app.",
-				"client-unavailable":
-					"Install the OpenSSH client and ensure ssh is in PATH.",
-				timeout:
-					"Check connectivity and the OpenSSH configuration, then try again.",
-				connection:
-					"Check the host, port, and OpenSSH configuration, then try again.",
-			};
-			return [message, hint[kind]].filter(Boolean).join(" ");
-		}
-		return error instanceof Error
-			? error.message
-			: typeof error === "string"
-				? error
-				: "Could not connect to the SSH environment.";
+		if (error instanceof Error) return error.message;
+		if (typeof error === "string") return error;
+		return (
+			formatCoreErrorMessage(error) ??
+			"Could not connect to the SSH environment."
+		);
 	},
 };
 export function validateEnvironment(value: EnvironmentDraft): string | null {

@@ -65,7 +65,7 @@
     "path": "docs/adr/0006-usar-openssh-no-backend-desktop-para-ambientes-remotos.md",
     "layer": "adr",
     "title": "Usar OpenSSH no backend desktop para ambientes remotos",
-    "status": "proposed",
+    "status": "accepted",
     "builds-on": [
       "ADR-0001",
       "ADR-0003",
@@ -79,7 +79,7 @@
     "path": "docs/adr/0007-separar-a-escrita-remota-segura-da-persistencia-local.md",
     "layer": "adr",
     "title": "Separar a escrita remota segura da persistência local",
-    "status": "proposed",
+    "status": "accepted",
     "builds-on": [
       "ADR-0004",
       "ADR-0005",
@@ -110,6 +110,49 @@
     "status": "accepted",
     "builds-on": [
       "ADR-0008"
+    ],
+    "superseded-by": null,
+    "implemented-by": []
+  },
+  {
+    "id": "ADR-0010",
+    "path": "docs/adr/0010-sincronizar-configuracoes-do-claude-desktop-por-projecao-explicita.md",
+    "layer": "adr",
+    "title": "Sincronizar configurações do Claude Desktop por projeção explícita",
+    "status": "proposed",
+    "builds-on": [
+      "ADR-0004",
+      "ADR-0005",
+      "ADR-0009"
+    ],
+    "superseded-by": null,
+    "implemented-by": []
+  },
+  {
+    "id": "ADR-0011",
+    "path": "docs/adr/0011-importar-sessoes-do-claude-code-entre-perfis-do-desktop.md",
+    "layer": "adr",
+    "title": "Importar sessões do Claude Code entre perfis do Desktop",
+    "status": "proposed",
+    "builds-on": [
+      "ADR-0004",
+      "ADR-0006",
+      "ADR-0009"
+    ],
+    "superseded-by": null,
+    "implemented-by": []
+  },
+  {
+    "id": "ADR-0012",
+    "path": "docs/adr/0012-separar-infraestrutura-ssh-e-contas-claude-em-crates-dedicados.md",
+    "layer": "adr",
+    "title": "Separar infraestrutura SSH e contas Claude em crates dedicados",
+    "status": "proposed",
+    "builds-on": [
+      "ADR-0001",
+      "ADR-0006",
+      "ADR-0008",
+      "ADR-0009"
     ],
     "superseded-by": null,
     "implemented-by": []
@@ -214,6 +257,44 @@
     "builds-on": [
       "ADR-0008",
       "ADR-0009"
+    ],
+    "superseded-by": null,
+    "implemented-by": []
+  },
+  {
+    "id": "SPEC-0008",
+    "path": "docs/specs/0008-trocar-contas-do-claude-desktop-por-perfil-isolado.md",
+    "layer": "specs",
+    "title": "Trocar contas do Claude Desktop por perfil isolado",
+    "status": "accepted",
+    "builds-on": [
+      "ADR-0009",
+      "SPEC-0007"
+    ],
+    "superseded-by": null,
+    "implemented-by": []
+  },
+  {
+    "id": "SPEC-0009",
+    "path": "docs/specs/0009-importar-conversas-locais-e-ssh-ao-trocar-contas-do-claude-desktop.md",
+    "layer": "specs",
+    "title": "Importar conversas locais e SSH ao trocar contas do Claude Desktop",
+    "status": "draft",
+    "builds-on": [
+      "ADR-0011",
+      "SPEC-0008"
+    ],
+    "superseded-by": null,
+    "implemented-by": []
+  },
+  {
+    "id": "SPEC-0010",
+    "path": "docs/specs/0010-aplicar-preferencias-de-interface-e-mcps-entre-perfis-do-claude-desktop.md",
+    "layer": "specs",
+    "title": "Aplicar preferências de interface e MCPs entre perfis do Claude Desktop",
+    "status": "draft",
+    "builds-on": [
+      "ADR-0010"
     ],
     "superseded-by": null,
     "implemented-by": []

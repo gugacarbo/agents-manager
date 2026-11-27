@@ -1,5 +1,10 @@
-import { ChevronDown, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import type { Ref } from "react";
+import { Input } from "@/components/ui/input";
+import {
+	NativeSelect,
+	NativeSelectOption,
+} from "@/components/ui/native-select";
 
 export interface AgentFilterValues {
 	query: string;
@@ -27,7 +32,7 @@ export function AgentFilterForm({
 					className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
 					aria-hidden="true"
 				/>
-				<input
+				<Input
 					ref={searchRef}
 					aria-label="Search by agent or path"
 					type="search"
@@ -36,34 +41,28 @@ export function AgentFilterForm({
 						onFilterChange({ ...values, query: event.target.value })
 					}
 					placeholder="Search by agent or path"
-					className="h-10 w-full rounded-md border border-input bg-background pr-3 pl-9 text-sm placeholder:text-muted-foreground"
+					className="h-10 pl-9"
 				/>
 			</div>
-			<div className="relative">
-				<select
-					aria-label="Filter by status"
-					value={values.status}
-					onChange={(event) => {
-						const status = event.target.value;
-						if (
-							status === "all" ||
-							status === "detected" ||
-							status === "missing"
-						) {
-							onFilterChange({ ...values, status });
-						}
-					}}
-					className="h-10 cursor-pointer appearance-none rounded-md border border-input bg-background pr-9 pl-3 text-sm"
-				>
-					<option value="all">All statuses</option>
-					<option value="detected">Detected</option>
-					<option value="missing">Not detected</option>
-				</select>
-				<ChevronDown
-					className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground"
-					aria-hidden="true"
-				/>
-			</div>
+			<NativeSelect
+				aria-label="Filter by status"
+				value={values.status}
+				onChange={(event) => {
+					const status = event.target.value;
+					if (
+						status === "all" ||
+						status === "detected" ||
+						status === "missing"
+					) {
+						onFilterChange({ ...values, status });
+					}
+				}}
+				className="h-10 cursor-pointer"
+			>
+				<NativeSelectOption value="all">All statuses</NativeSelectOption>
+				<NativeSelectOption value="detected">Detected</NativeSelectOption>
+				<NativeSelectOption value="missing">Not detected</NativeSelectOption>
+			</NativeSelect>
 		</search>
 	);
 }

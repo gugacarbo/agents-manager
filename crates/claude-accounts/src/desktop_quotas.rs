@@ -44,6 +44,7 @@ pub enum DesktopQuotaError {
     RateLimited,
     NotLinked,
     StorageUnavailable,
+    KeyringUnavailable,
     DuplicateAccount,
     ProfileNotFound,
 }
@@ -249,6 +250,7 @@ impl DesktopQuotaService {
 pub struct DesktopQuotaProfile {
     pub id: String,
     pub is_default: bool,
+    pub shares_default_quota: bool,
     pub state: DesktopQuotaState,
 }
 
@@ -316,6 +318,15 @@ impl DesktopQuotaProfiles {
     pub fn profile_dir(&self, id: &str) -> Result<PathBuf, DesktopQuotaError> {
         self.dir_for(id)
     }
+    /// Confirms that the profile has a persisted account identity before launching the Desktop.
+    pub fn ensure_linked(&self, id: &str) -> Result<(), DesktopQuotaError> {
+        let service = self.service(id)?;
+        if service.load()?.identity.is_some() {
+            Ok(())
+        } else {
+            Err(DesktopQuotaError::Unauthenticated)
+        }
+    }
     fn service(&self, id: &str) -> Result<DesktopQuotaService, DesktopQuotaError> {
         Ok(DesktopQuotaService::new(
             self.dir_for(id)?,
@@ -346,19 +357,34 @@ impl DesktopQuotaProfiles {
     }
     pub fn list(&self) -> Result<Vec<DesktopQuotaProfile>, DesktopQuotaError> {
         let _guard = self.registry_lock()?;
+        let default_identity = self
+            .service("default")?
+            .load()
+            .ok()
+            .and_then(|stored| stored.identity);
         Ok(self
             .ids()?
             .into_iter()
             .map(|id| {
-                let state = match self.service(&id).and_then(|service| service.state()) {
-                    Ok(state) => state,
-                    Err(error) => DesktopQuotaState {
-                        error: Some(error),
-                        ..DesktopQuotaState::default()
-                    },
+                let shares_default_quota;
+                let state = match self.service(&id).and_then(|service| service.load()) {
+                    Ok(stored) => {
+                        shares_default_quota = id != "default"
+                            && default_identity.is_some()
+                            && stored.identity == default_identity;
+                        stored.state
+                    }
+                    Err(error) => {
+                        shares_default_quota = false;
+                        DesktopQuotaState {
+                            error: Some(error),
+                            ..DesktopQuotaState::default()
+                        }
+                    }
                 };
                 DesktopQuotaProfile {
                     is_default: id == "default",
+                    shares_default_quota,
                     id,
                     state,
                 }
@@ -386,6 +412,7 @@ impl DesktopQuotaProfiles {
         Ok(DesktopQuotaProfile {
             id,
             is_default: false,
+            shares_default_quota: false,
             state: DesktopQuotaState::default(),
         })
     }
@@ -408,10 +435,14 @@ impl DesktopQuotaProfiles {
             return Err(DesktopQuotaError::IdentityMismatch);
         }
         let _guard = self.registry_lock()?;
+        let mut shares_default_quota = false;
         for other in self.ids()? {
             if other != id && self.service(&other)?.load()?.identity.as_ref() == Some(&identity.id)
             {
-                return Err(DesktopQuotaError::DuplicateAccount);
+                if id != "default" && other != "default" {
+                    return Err(DesktopQuotaError::DuplicateAccount);
+                }
+                shares_default_quota = other == "default";
             }
         }
         stored.identity = Some(identity.id);
@@ -423,10 +454,21 @@ impl DesktopQuotaProfiles {
         Ok(DesktopQuotaProfile {
             id: id.to_owned(),
             is_default: id == "default",
+            shares_default_quota,
             state: stored.state,
         })
     }
     pub fn refresh(&self, id: &str) -> Result<DesktopQuotaRefresh, DesktopQuotaError> {
-        self.service(id)?.refresh()
+        let service = self.service(id)?;
+        if id != "default" {
+            let identity = service.load()?.identity;
+            let default = self.service("default")?;
+            if identity.is_some()
+                && default.load().ok().and_then(|stored| stored.identity) == identity
+            {
+                return default.refresh();
+            }
+        }
+        service.refresh()
     }
 }

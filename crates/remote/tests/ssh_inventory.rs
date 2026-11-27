@@ -1,8 +1,6 @@
 #![allow(clippy::unwrap_used)]
-use agents_manager_core::{
-    domain::{SshConnection, SshEnvironmentDraft},
-    ssh,
-};
+use agents_manager_core::domain::{SshConnection, SshEnvironmentDraft};
+use agents_manager_remote::ssh;
 use tempfile::tempdir;
 #[test]
 fn registry_persists_and_rejects_invalid_before_saving() {

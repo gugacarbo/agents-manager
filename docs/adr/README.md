@@ -9,7 +9,10 @@
 | [ADR-0003](0003-extensible-agent-adapter-architecture.md) | Adotar arquitetura de adapters extensíveis com paths injetáveis | accepted |
 | [ADR-0004](0004-safe-surgical-writes-conflict-detection-and-secrets.md) | Exigir escrita cirúrgica, detecção de conflitos externos e mascaramento de segredos | accepted |
 | [ADR-0005](0005-xdg-file-storage-library-layout-and-backup-retention.md) | Persistir estado, biblioteca compartilhada e backups rotacionados em arquivos XDG | accepted |
-| [ADR-0006](0006-usar-openssh-no-backend-desktop-para-ambientes-remotos.md) | Usar OpenSSH no backend desktop para ambientes remotos | proposed |
-| [ADR-0007](0007-separar-a-escrita-remota-segura-da-persistencia-local.md) | Separar a escrita remota segura da persistência local | proposed |
+| [ADR-0006](0006-usar-openssh-no-backend-desktop-para-ambientes-remotos.md) | Usar OpenSSH no backend desktop para ambientes remotos | accepted |
+| [ADR-0007](0007-separar-a-escrita-remota-segura-da-persistencia-local.md) | Separar a escrita remota segura da persistência local | accepted |
 | [ADR-0008](0008-isolar-a-autenticacao-do-claude-code-por-perfil.md) | Isolar a autenticação do Claude Code por perfil | accepted |
 | [ADR-0009](0009-consultar-a-cota-da-conta-ativa-do-claude-desktop.md) | Consultar cotas de contas do Claude Desktop por perfil isolado | accepted |
+| [ADR-0010](0010-sincronizar-configuracoes-do-claude-desktop-por-projecao-explicita.md) | Sincronizar configurações do Claude Desktop por projeção explícita | proposed |
+| [ADR-0011](0011-importar-sessoes-do-claude-code-entre-perfis-do-desktop.md) | Importar sessões do Claude Code entre perfis do Desktop | proposed |
+| [ADR-0012](0012-separar-infraestrutura-ssh-e-contas-claude-em-crates-dedicados.md) | Separar infraestrutura SSH e contas Claude em crates dedicados | proposed |

@@ -1,8 +1,13 @@
-import { useState } from "react";
+import { useId, useState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import type { ConfigDocument } from "@/lib/configs";
 import { library } from "@/lib/library";
 export function PromoteButton({ document }: { document: ConfigDocument }) {
+	const id = useId();
 	const [open, setOpen] = useState(false);
 	const [name, setName] = useState(document.entry.label);
 	const [confirmed, setConfirmed] = useState(false);
@@ -38,29 +43,31 @@ export function PromoteButton({ document }: { document: ConfigDocument }) {
 			{open && (
 				<div className="space-y-2 rounded-lg border border-border p-3">
 					<p className="text-sm">The saved file on disk will be promoted.</p>
-					<label className="block text-sm">
-						Library item name
-						<input
-							className="min-h-9 w-full rounded-md border border-input bg-background px-3"
+					<div className="space-y-1.5">
+						<Label htmlFor={`${id}-name`}>Library item name</Label>
+						<Input
+							id={`${id}-name`}
 							value={name}
 							onChange={(event) => setName(event.target.value)}
 						/>
-					</label>
+					</div>
 					{needsConfirmation && (
-						<label className="flex items-start gap-2 text-sm">
-							<input
-								type="checkbox"
+						<div className="flex items-start gap-2">
+							<Checkbox
+								id={`${id}-confirm`}
 								checked={confirmed}
-								onChange={(event) => setConfirmed(event.target.checked)}
+								onCheckedChange={(checked) => setConfirmed(checked === true)}
 							/>
-							This file contains literal secrets. Consider using {`\${VAR}`}; I
-							confirm storing them in the library.
-						</label>
+							<Label htmlFor={`${id}-confirm`} className="font-normal">
+								This file contains literal secrets. Consider using {`\${VAR};`}{" "}
+								I confirm storing them in the library.
+							</Label>
+						</div>
 					)}
 					{error && (
-						<p role="alert" className="text-destructive">
-							{error}
-						</p>
+						<Alert variant="destructive">
+							<AlertDescription>{error}</AlertDescription>
+						</Alert>
 					)}
 					<Button
 						disabled={!name.trim() || (needsConfirmation && !confirmed)}

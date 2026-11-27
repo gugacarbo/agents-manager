@@ -27,9 +27,11 @@ incluindo contas de perfis isolados que não estão ativos na instalação padr�
 
 ## Contract
 
-- Cada vínculo é associado a um único perfil e a uma identidade estável. A mesma identidade não pode
-  ser cadastrada duas vezes. Confirmar uma identidade diferente em um perfil já vinculado produz
-  erro e preserva a leitura anterior.
+- Cada conta tem uma identidade estável e uma única cota. Quando a mesma identidade for confirmada
+  na sessão padrão e em um perfil isolado, mostrar uma única conta com as duas opções de abertura. O
+  vínculo padrão conserva seu histórico e é a fonte de atualização do par. A confirmação do perfil
+  isolado verifica a identidade na sua própria sessão. Uma segunda sessão isolada para a mesma
+  identidade continua sendo rejeitada.
 - Verificar a identidade a cada coleta no perfil do próprio vínculo. Erros e indisponibilidade de
   uma conta não impedem a atualização de outras e não provocam consulta a fontes alternativas.
 - Mostrar o percentual usado e o horário de renovação das janelas de 5h e 7d. Tratar cada campo
@@ -51,7 +53,7 @@ incluindo contas de perfis isolados que não estão ativos na instalação padr�
 | 3   | Uma conta falha ou expira durante a atualização em lote                                                     | Preservar o histórico da conta, mostrar o erro e continuar as outras contas elegíveis.                                                  |
 | 4   | Uma atualização manual e outra em lote pedem a mesma conta dentro do intervalo ou com consulta em andamento | Bloquear apenas aquela conta sem reagendar a solicitação.                                                                               |
 | 5   | A tela permanece aberta, é fechada ou recupera foco sem novo acionamento explícito                          | Manter os dados exibidos sem iniciar coleta em segundo plano.                                                                           |
-| 6   | A identidade diverge, a fonte está indisponível ou a conta já existe em outro perfil                        | Mostrar erro sem atribuir nova leitura, criar um vínculo duplicado ou consultar outra conta.                                            |
+| 6   | A identidade diverge, a fonte está indisponível ou já existe um perfil incompatível para a conta            | Mostrar erro sem atribuir nova leitura, criar um vínculo duplicado ou consultar outra conta.                                            |
 | 7   | O app abre com o arquivo da versão de conta única                                                           | Exibir a conta da sessão padrão e os dados anteriormente salvos como históricos até obter nova leitura.                                 |
 | 8   | O usuário fecha a tela ou reinicia o app durante o cadastro                                                 | Manter o perfil pendente e permitir retomar o fluxo oficial sem perder vínculos anteriores.                                             |
 

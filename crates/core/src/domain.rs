@@ -349,3 +349,23 @@ pub struct RemoteSaveResult {
     pub sha256: String,
     pub backup_path: String,
 }
+
+fn default_minimize_to_tray() -> bool {
+    true
+}
+
+/// User preferences for desktop window and tray behavior.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AppPreferences {
+    #[serde(default = "default_minimize_to_tray")]
+    pub minimize_to_tray: bool,
+}
+
+impl Default for AppPreferences {
+    fn default() -> Self {
+        Self {
+            minimize_to_tray: default_minimize_to_tray(),
+        }
+    }
+}

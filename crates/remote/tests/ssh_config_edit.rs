@@ -5,8 +5,8 @@ mod atomic_probe;
 use agents_manager_core::{
     domain::{AgentKind, ConfigFormat, RemoteConfigDocument, RemoteConfigEntry, RemoteConfigId},
     error::CoreError,
-    remote_config,
 };
+use agents_manager_remote::remote_config;
 fn document() -> RemoteConfigDocument {
     RemoteConfigDocument {
         entry: RemoteConfigEntry {
@@ -54,10 +54,8 @@ fn backend_rejects_invalid_syntax_and_edits_to_protected_project_data() {
 #[cfg(target_os = "linux")]
 #[test]
 fn real_openssh_read_save_conflict_symlinks_and_backup_fail_closed() {
-    use agents_manager_core::{
-        domain::{SshConnection, SshEnvironmentDraft},
-        ssh::SshTransport,
-    };
+    use agents_manager_core::domain::{SshConnection, SshEnvironmentDraft};
+    use agents_manager_remote::ssh::SshTransport;
     use std::{
         fs,
         net::{TcpListener, TcpStream},
@@ -333,10 +331,8 @@ for line in child.stdout:
 #[cfg(unix)]
 #[test]
 fn lost_confirmation_does_not_retry_or_report_success() {
-    use agents_manager_core::{
-        domain::{SshConnection, SshEnvironmentDraft},
-        ssh::SshTransport,
-    };
+    use agents_manager_core::domain::{SshConnection, SshEnvironmentDraft};
+    use agents_manager_remote::ssh::SshTransport;
     use sha2::{Digest, Sha256};
     use std::{fs, os::unix::fs::PermissionsExt, time::Duration};
     use tempfile::tempdir;

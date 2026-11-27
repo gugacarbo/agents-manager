@@ -1,10 +1,24 @@
 use std::path::Path;
 
 use agents_manager_core::domain::{
-    AgentKind, AgentSummary, ConfigCategory as C, ConfigFileEntry, ConfigFormat as F,
+    AgentKind, AgentSummary, ConfigCategory, ConfigCategory as C, ConfigFileEntry,
+    ConfigFormat as F, ConfigScope, ConfigScope as S,
 };
 
-use crate::{AgentAdapter, add, add_children, detect_first_existing_dir};
+use crate::{
+    AgentAdapter, add, add_children, build_config_entry, build_skill_sync_entry,
+    detect_first_existing_dir,
+};
+
+fn global_settings_relative_path(home: &Path) -> &'static str {
+    if home.join(".gemini/config/config.json").is_file()
+        || !home.join(".gemini/settings.json").is_file()
+    {
+        ".gemini/config/config.json"
+    } else {
+        ".gemini/settings.json"
+    }
+}
 
 /// Adapter for Antigravity configuration under `~/.gemini/antigravity`.
 #[derive(Debug, Default, Clone, Copy)]
@@ -26,14 +40,14 @@ impl AgentAdapter for AntigravityAdapter {
     fn list_global_configs(&self, home: &Path) -> Vec<ConfigFileEntry> {
         let kind = self.kind();
         let mut entries = Vec::new();
-        let settings = if home.join(".gemini/config/config.json").is_file()
-            || !home.join(".gemini/settings.json").is_file()
-        {
-            ".gemini/config/config.json"
-        } else {
-            ".gemini/settings.json"
-        };
-        add(&mut entries, home, kind, C::Settings, F::Json, settings);
+        add(
+            &mut entries,
+            home,
+            kind,
+            C::Settings,
+            F::Json,
+            global_settings_relative_path(home),
+        );
         add(
             &mut entries,
             home,
@@ -101,6 +115,35 @@ impl AgentAdapter for AntigravityAdapter {
         add_children(&mut entries, root, kind, C::Skills, ".agents/skills", true);
         add_children(&mut entries, root, kind, C::Skills, ".gemini/skills", true);
         entries
+    }
+
+    fn resolve_sync_target(
+        &self,
+        scope: ConfigScope,
+        root: &Path,
+        category: ConfigCategory,
+        slug: &str,
+    ) -> Option<ConfigFileEntry> {
+        let (relative, format) = match (scope, category) {
+            (S::Global, C::Mcps) => (".gemini/config/mcp_config.json", F::Json),
+            (S::Project, C::Mcps) => (".gemini/mcp_config.json", F::Json),
+            (S::Global, C::Settings) => (global_settings_relative_path(root), F::Json),
+            (S::Project, C::Settings) => (".gemini/settings.json", F::Json),
+            (_, C::Rules) => (".gemini/GEMINI.md", F::Markdown),
+            (S::Global, C::Skills) => {
+                return build_skill_sync_entry(root, self.kind(), ".gemini/config/skills", slug);
+            }
+            (S::Project, C::Skills) => {
+                return build_skill_sync_entry(root, self.kind(), ".gemini/skills", slug);
+            }
+        };
+        Some(build_config_entry(
+            root,
+            self.kind(),
+            category,
+            format,
+            relative,
+        ))
     }
 }
 

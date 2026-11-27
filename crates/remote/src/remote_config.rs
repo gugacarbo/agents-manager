@@ -1,10 +1,10 @@
-use crate::{
+use agents_manager_core::{
     domain::{RemoteConfigDocument, RemoteConfigId},
     error::CoreError,
 };
 pub fn validate_draft(doc: &RemoteConfigDocument, content: &str) -> Result<(), CoreError> {
     match doc.entry.format {
-        crate::domain::ConfigFormat::Json => {
+        agents_manager_core::domain::ConfigFormat::Json => {
             let value: serde_json::Value =
                 serde_json::from_str(content).map_err(|e| CoreError::SyntaxError {
                     message: e.to_string(),
@@ -22,7 +22,7 @@ pub fn validate_draft(doc: &RemoteConfigDocument, content: &str) -> Result<(), C
                 }
             }
         }
-        crate::domain::ConfigFormat::Toml => {
+        agents_manager_core::domain::ConfigFormat::Toml => {
             content
                 .parse::<toml::Table>()
                 .map_err(|e| CoreError::SyntaxError {
@@ -38,13 +38,13 @@ pub fn validate_draft(doc: &RemoteConfigDocument, content: &str) -> Result<(), C
     Ok(())
 }
 
-use crate::{
+use crate::ssh::{self, SshTransport};
+use agents_manager_core::{
     config::detect_secrets,
     domain::{
         AgentKind, ConfigFormat, RemoteConfigEntry, RemoteSaveResult, SshEnvironmentDraft,
         SshErrorKind,
     },
-    ssh::{self, SshTransport},
 };
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
@@ -460,7 +460,10 @@ pub fn save_config(
     }
     let backup = snapshot(backups, doc)?;
     let expected = serde_json::json!({"path":doc.path,"sha256":doc.sha256,"device":doc.device,"inode":doc.inode,"mode":doc.mode,"uid":doc.uid,"gid":doc.gid,"metadata_hash":doc.metadata_hash});
-    let result=session.request(&serde_json::json!({"op":"save","id":key(doc.entry.id),"expected":expected,"content":content}),true)?;
+    let result = session.request(
+        &serde_json::json!({"op":"save","id":key(doc.entry.id),"expected":expected,"content":content}),
+        true,
+    )?;
     let sha = result
         .get("sha256")
         .and_then(serde_json::Value::as_str)
