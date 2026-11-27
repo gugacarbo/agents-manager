@@ -34,8 +34,9 @@ Linux-first na v1, com arquitetura de adapters desacoplada para futura distribui
 
 ```bash
 bun install
-bun run dev     # app desktop Tauri v2 + Vite com hot-reload
-bun run dev:web # frontend Vite isolado (http://localhost:1420)
+bun run dev       # app desktop Tauri v2 + Vite com hot-reload
+bun run dev:web   # frontend Vite isolado (http://localhost:1420)
+bun run storybook # catálogo de componentes Storybook (http://localhost:6006)
 ```
 
 ## How to validate (global repo DoD)
@@ -48,6 +49,7 @@ bun run spell              # exit 0 — CSpell (en, pt_BR)
 bun run knip               # exit 0 — detecção de código/deps não usados
 bun run test               # exit 0 — Vitest + cargo test --workspace em paralelo
 bun run build:web          # exit 0 — Vite production build
+bun run build-storybook    # exit 0 — Storybook static build
 bun run test:e2e           # exit 0 — Playwright E2E (Chromium)
 ```
 

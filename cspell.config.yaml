@@ -20,19 +20,30 @@ ignorePaths:
   - bun.lock
   - Cargo.lock
   - dist/**
+  - storybook-static/**
   - playwright-report/**
   - node_modules/**
 words:
   - claude
+  - clsx
+  - cmdk
+  - codemirror
+  - cva
   - dtolnay
   - egui
   - gemini
   - github
   - gpui
   - gugacarbo
+  - keymap
+  - lucide
+  - modelcontextprotocol
   - serde
   - serialização
+  - shadcn
   - slint
+  - sonner
+  - storybook
   - swatinem
   - taiki
   - tauri

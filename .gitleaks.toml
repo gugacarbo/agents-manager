@@ -9,5 +9,5 @@ paths = [
   '''(^|/)bun\.lockb?$''',
   '''(^|/)Cargo\.lock$''',
   '''(^|/)pnpm-lock\.yaml$''',
-  '''^(target|src-tauri/target|node_modules|dist)(/|$)''',
+  '''^(target|src-tauri/target|node_modules|dist|storybook-static)(/|$)''',
 ]

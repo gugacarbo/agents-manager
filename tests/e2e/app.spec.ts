@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("displays Agents Manager heading and the three agent cards", async ({
+test("displays Agents Manager heading, cards, table, and editor route", async ({
 	page,
 }) => {
 	await page.goto("/");
@@ -17,5 +17,12 @@ test("displays Agents Manager heading and the three agent cards", async ({
 		page.getByRole("heading", { name: "Antigravity" }),
 	).toBeVisible();
 
-	await expect(page.getByText("Not detected")).toHaveCount(3);
+	await expect(
+		page.getByRole("status").filter({ hasText: "Not detected" }),
+	).toHaveCount(3);
+
+	await page.getByRole("link", { name: "Editor & Diff" }).click();
+	await expect(
+		page.getByRole("heading", { name: "Config & Diff Preview" }),
+	).toBeVisible();
 });

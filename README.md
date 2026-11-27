@@ -12,12 +12,15 @@ synchronization of AI coding agent configurations (**Claude Code**, **Codex**, a
   `AgentSummary`) and typed errors (`CoreError`).
 - **Agent Adapters (`crates/adapters/`)**: Extensible `AgentAdapter` trait with isolated
   implementations for `claude_code`, `codex`, and `antigravity`.
-- **Frontend (`src/`)**: React 19, TypeScript, Tailwind CSS v4, TanStack Query, and Zod v4.
+- **Frontend (`src/`)**: React 19, TypeScript, Tailwind CSS v4, shadcn/ui, TanStack (Router, Query,
+  Form, Table), Zod v4, CodeMirror 6, and Storybook.
 - **E2E Tests (`tests/e2e/`)**: Playwright tests running against the Vite dev server.
 
 ## Prerequisites
 
-- [Bun](https://bun.sh/) `1.2+`
+- [Bun](https://bun.sh/) `1.3.9+` (`bun run --parallel`; CI uses `1.4.5`). Frontend tooling also
+  uses [Node.js](https://nodejs.org/); use `22.22.2+` on the Node 22 line to meet the locked jsdom
+  requirement.
 - [Rust](https://www.rust-lang.org/tools/install) `stable` (`rustfmt` and `clippy` included via
   `rust-toolchain.toml`)
 - On Linux (Ubuntu/Debian), native system libraries required by Tauri v2:
@@ -32,8 +35,9 @@ sudo apt update && sudo apt install -y \
 
 ```bash
 bun install
-bun run dev     # Full Tauri v2 desktop app + Vite with hot-reload
-bun run dev:web # Standalone Vite frontend (http://localhost:1420)
+bun run dev       # Full Tauri v2 desktop app + Vite with hot-reload
+bun run dev:web   # Standalone Vite frontend (http://localhost:1420)
+bun run storybook # Storybook component workbench (http://localhost:6006)
 ```
 
 To build the complete desktop bundle locally:
@@ -52,6 +56,7 @@ bun run spell              # CSpell (en, pt_BR)
 bun run knip               # Unused files, exports, and dependencies
 bun run test               # Vitest + cargo test --workspace (parallel)
 bun run build:web          # Vite production build
+bun run build-storybook    # Storybook static build
 bun run test:e2e           # Playwright E2E tests (Chromium)
 ```
 

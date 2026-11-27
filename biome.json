@@ -4,9 +4,11 @@
 		"includes": [
 			"**/src/**/*",
 			"**/tests/**/*",
+			"**/.storybook/**/*",
 			"**/*.config.ts",
 			"**/index.html",
 			"!**/dist",
+			"!**/storybook-static",
 			"!**/target",
 			"!**/src-tauri/target",
 			"!**/src/bindings",
@@ -42,6 +44,11 @@
 			"suspicious": {
 				"noConsole": "error"
 			}
+		}
+	},
+	"css": {
+		"parser": {
+			"tailwindDirectives": true
 		}
 	},
 	"javascript": {

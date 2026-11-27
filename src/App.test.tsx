@@ -1,8 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
+import { CodeEditor } from "./components/CodeEditor";
+import { AgentFilterForm } from "./features/agents/AgentFilterForm";
+import { AgentsTable } from "./features/agents/AgentsTable";
 import { agentKindSchema, agentSummarySchema } from "./lib/schemas";
 
 function renderApp() {
@@ -25,6 +28,7 @@ afterEach(() => {
 	cleanup();
 	clearMocks();
 	delete (window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
+	window.location.hash = "";
 });
 
 describe("agentSummarySchema", () => {
@@ -87,7 +91,7 @@ describe("App", () => {
 		renderApp();
 
 		expect(
-			screen.getByRole("heading", { name: "Agents Manager" }),
+			await screen.findByRole("heading", { name: "Agents Manager" }),
 		).toBeInTheDocument();
 
 		expect(
@@ -134,10 +138,10 @@ describe("App", () => {
 
 		renderApp();
 
-		expect(await screen.findByText("/home/dev/.claude")).toBeInTheDocument();
+		expect(await screen.findAllByText("/home/dev/.claude")).not.toHaveLength(0);
 		expect(
-			screen.getByText("/home/dev/.gemini/antigravity"),
-		).toBeInTheDocument();
+			screen.getAllByText("/home/dev/.gemini/antigravity"),
+		).not.toHaveLength(0);
 
 		const statuses = screen.getAllByRole("status");
 		expect(statuses).toHaveLength(3);
@@ -160,5 +164,44 @@ describe("App", () => {
 		expect(alert).toHaveTextContent(
 			"Failed to load agents: Not found: user home directory",
 		);
+	});
+});
+
+describe("AgentFilterForm and AgentsTable", () => {
+	it("updates filter state and renders agent rows via TanStack Table", () => {
+		const onFilterChange = vi.fn();
+		render(
+			<div>
+				<AgentFilterForm
+					initialValues={{ query: "", status: "all" }}
+					onFilterChange={onFilterChange}
+				/>
+				<AgentsTable
+					agents={[
+						{
+							kind: "claude-code",
+							name: "Claude Code",
+							detected: true,
+							configPath: "/home/dev/.claude",
+						},
+					]}
+				/>
+			</div>,
+		);
+
+		fireEvent.change(screen.getByLabelText("Search agents"), {
+			target: { value: "claude" },
+		});
+		expect(onFilterChange).toHaveBeenCalledWith({
+			query: "claude",
+			status: "all",
+		});
+		expect(screen.getByText("Claude Code")).toBeInTheDocument();
+		expect(screen.getByText("/home/dev/.claude")).toBeInTheDocument();
+	});
+
+	it("mounts CodeMirror editor with initial content", () => {
+		render(<CodeEditor value='{"ok": true}' language="json" />);
+		expect(screen.getByLabelText("Configuration editor")).toBeInTheDocument();
 	});
 });
