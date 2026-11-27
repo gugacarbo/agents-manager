@@ -8,7 +8,7 @@ license.workspace = true
 workspace = true
 
 [dependencies]
-agents-manager-core = { path = "../core" }
+agents-manager-core = { version = "0.1.0", path = "../core" }
 
 [dev-dependencies]
 tempfile = "3"

@@ -4,7 +4,7 @@ use agents_manager_core::domain::{AgentKind, AgentSummary};
 
 use crate::{AgentAdapter, detect_first_existing_dir};
 
-/// Adapter for Antigravity configuration under `~/.gemini/antigravity` or `~/.gemini`.
+/// Adapter for Antigravity configuration under `~/.gemini/antigravity`.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct AntigravityAdapter;
 
@@ -18,12 +18,7 @@ impl AgentAdapter for AntigravityAdapter {
     }
 
     fn detect(&self, home: &Path) -> AgentSummary {
-        detect_first_existing_dir(
-            self.kind(),
-            self.name(),
-            home,
-            &[".gemini/antigravity", ".gemini"],
-        )
+        detect_first_existing_dir(self.kind(), self.name(), home, &[".gemini/antigravity"])
     }
 }
 
@@ -35,7 +30,7 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
-    fn prefers_antigravity_subdirectory_when_present() {
+    fn detects_antigravity_subdirectory_when_present() {
         let temp = tempdir().unwrap();
         let expected = temp.path().join(".gemini/antigravity");
         fs::create_dir_all(&expected).unwrap();
@@ -51,17 +46,14 @@ mod tests {
     }
 
     #[test]
-    fn falls_back_to_gemini_directory() {
+    fn reports_undetected_for_gemini_cli_only() {
         let temp = tempdir().unwrap();
-        let expected = temp.path().join(".gemini");
-        fs::create_dir(&expected).unwrap();
+        let gemini_dir = temp.path().join(".gemini");
+        fs::create_dir(&gemini_dir).unwrap();
+        fs::write(gemini_dir.join("settings.json"), "{}").unwrap();
 
         let summary = AntigravityAdapter.detect(temp.path());
-        assert!(summary.detected);
-        assert_eq!(
-            summary.config_path,
-            Some(expected.to_string_lossy().into_owned())
-        );
+        assert_eq!((summary.detected, summary.config_path), (false, None));
     }
 
     #[test]

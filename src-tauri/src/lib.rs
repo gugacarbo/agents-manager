@@ -5,9 +5,20 @@ use std::path::{Path, PathBuf};
 use specta_typescript::Typescript;
 use tauri_specta::{Builder, collect_commands};
 
-fn specta_builder() -> Builder<tauri::Wry> {
-    Builder::<tauri::Wry>::new().commands(collect_commands![commands::list_agents])
+fn specta_builder<R: tauri::Runtime>() -> Builder<R> {
+    Builder::<R>::new().commands(collect_commands![commands::list_agents])
 }
+
+fn with_ipc_handler<R: tauri::Runtime>(
+    app: tauri::Builder<R>,
+    specta: &Builder<R>,
+) -> tauri::Builder<R> {
+    app.invoke_handler(specta.invoke_handler())
+}
+
+#[cfg(all(test, target_os = "linux"))]
+#[allow(clippy::expect_used)]
+mod ipc_smoke;
 
 /// Returns the canonical path for generated TypeScript IPC bindings.
 pub fn default_bindings_path() -> PathBuf {
@@ -41,8 +52,7 @@ pub fn run() {
         eprintln!("failed to export TypeScript bindings: {err}");
     }
 
-    tauri::Builder::default()
-        .invoke_handler(builder.invoke_handler())
+    with_ipc_handler(tauri::Builder::default(), &builder)
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
