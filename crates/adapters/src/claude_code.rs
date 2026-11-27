@@ -1,8 +1,10 @@
 use std::path::Path;
 
-use agents_manager_core::domain::{AgentKind, AgentSummary};
+use agents_manager_core::domain::{
+    AgentKind, AgentSummary, ConfigCategory as C, ConfigFileEntry, ConfigFormat as F,
+};
 
-use crate::{AgentAdapter, detect_first_existing_dir};
+use crate::{AgentAdapter, add, add_children, detect_first_existing_dir};
 
 /// Adapter for Anthropic Claude Code configuration under `~/.claude`.
 #[derive(Debug, Default, Clone, Copy)]
@@ -19,6 +21,70 @@ impl AgentAdapter for ClaudeCodeAdapter {
 
     fn detect(&self, home: &Path) -> AgentSummary {
         detect_first_existing_dir(self.kind(), self.name(), home, &[".claude"])
+    }
+
+    fn list_global_configs(&self, home: &Path) -> Vec<ConfigFileEntry> {
+        let kind = self.kind();
+        let mut entries = Vec::new();
+        add(
+            &mut entries,
+            home,
+            kind,
+            C::Settings,
+            F::Json,
+            ".claude/settings.json",
+        );
+        add(&mut entries, home, kind, C::Mcps, F::Json, ".claude.json");
+        add(
+            &mut entries,
+            home,
+            kind,
+            C::Mcps,
+            F::Json,
+            ".claude/.claude.json",
+        );
+        add(
+            &mut entries,
+            home,
+            kind,
+            C::Rules,
+            F::Markdown,
+            ".claude/CLAUDE.md",
+        );
+        add_children(&mut entries, home, kind, C::Skills, ".claude/skills", true);
+        entries
+    }
+    fn list_project_configs(&self, root: &Path) -> Vec<ConfigFileEntry> {
+        let mut entries = Vec::new();
+        let kind = self.kind();
+        add(&mut entries, root, kind, C::Mcps, F::Json, ".mcp.json");
+        add(
+            &mut entries,
+            root,
+            kind,
+            C::Settings,
+            F::Json,
+            ".claude/settings.json",
+        );
+        add(
+            &mut entries,
+            root,
+            kind,
+            C::Settings,
+            F::Json,
+            ".claude/settings.local.json",
+        );
+        add(&mut entries, root, kind, C::Rules, F::Markdown, "CLAUDE.md");
+        add(
+            &mut entries,
+            root,
+            kind,
+            C::Rules,
+            F::Markdown,
+            "CLAUDE.local.md",
+        );
+        add_children(&mut entries, root, kind, C::Skills, ".claude/skills", true);
+        entries
     }
 }
 

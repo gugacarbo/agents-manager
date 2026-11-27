@@ -13,3 +13,12 @@ never ignored in silence.
 | 0003 | extensible-agent-adapter-architecture                | 2026-11-26 | in use |
 | 0004 | safe-surgical-writes-conflict-detection-and-secrets  | 2026-11-26 | in use |
 | 0005 | xdg-file-storage-library-layout-and-backup-retention | 2026-11-26 | in use |
+
+## Spec Reservations
+
+| NNNN | title | date | status |
+|---|---|---|---|
+| 0001 | global-agent-config-inspection-and-safe-editing | 2026-11-26 | in use |
+| 0002 | project-scope-and-structured-config-editors | 2026-11-26 | in use |
+| 0003 | shared-library-and-agent-sync | 2026-11-26 | in use |
+| 0004 | backup-history-restore-and-unified-search | 2026-11-26 | in use |

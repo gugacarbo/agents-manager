@@ -1,5 +1,24 @@
 import { expect, test } from "@playwright/test";
 
+test("skips workspace navigation by keyboard in a compact window", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 375, height: 667 });
+	await page.goto("/");
+	await expect(
+		page.getByRole("heading", { name: "Local agents", level: 1 }),
+	).toBeVisible();
+	await page.keyboard.press("Tab");
+	await expect(
+		page.getByRole("button", { name: "Skip to content" }),
+	).toBeFocused();
+	await page.keyboard.press("Enter");
+	await expect(page.getByRole("main")).toBeFocused();
+	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
+		375,
+	);
+});
+
 for (const width of [1200, 900]) {
 	test(`keeps a long configuration path readable at ${width}px`, async ({
 		page,
@@ -78,7 +97,7 @@ test("switches diff tabs by keyboard without losing a draft and resets the sampl
 	page,
 }) => {
 	await page.setViewportSize({ width: 900, height: 600 });
-	await page.goto("/#/editor");
+	await page.goto("/#/demo");
 	const editorTab = page.getByRole("tab", { name: "Sample editor" });
 	const diffTab = page.getByRole("tab", { name: "Changes from original" });
 	const editor = page.getByRole("textbox", { name: "Sample editor" });

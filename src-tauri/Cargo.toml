@@ -18,6 +18,8 @@ tauri-build = { version = "2", features = [] }
 agents-manager-adapters = { version = "0.1.0", path = "../crates/adapters" }
 agents-manager-core = { version = "0.1.0", path = "../crates/core" }
 directories = "6"
+notify = "8"
+serde = { version = "1", features = ["derive"] }
 specta = { version = "=2.0.0-rc.28", features = ["derive", "function"] }
 specta-typescript = "0.0.15"
 tauri = { version = "2", features = [] }

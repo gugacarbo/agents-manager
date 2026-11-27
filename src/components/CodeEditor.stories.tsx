@@ -25,3 +25,11 @@ export const ConfigDiff: StoryObj<typeof DiffViewer> = {
 		/>
 	),
 };
+
+export const MaskedSecret: Story = {
+	args: {
+		language: "json",
+		value: '{"token":"example-secret"}',
+		secretSpans: [{ startByte: 10, endByte: 24, kind: "token" }],
+	},
+};

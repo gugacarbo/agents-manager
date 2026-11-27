@@ -5,6 +5,18 @@ use thiserror::Error;
 /// Domain-level errors produced by `agents-manager-core`.
 #[derive(Debug, Clone, PartialEq, Eq, Error, Serialize, Deserialize, Type)]
 pub enum CoreError {
+    #[error("project already registered: {root_path}")]
+    DuplicateProject { id: String, root_path: String },
+    #[error("permission denied: {message}")]
+    PermissionDenied { message: String },
+    #[error("path not allowed: {path}")]
+    PathNotAllowed { path: String },
+    #[error("syntax error: {message}")]
+    SyntaxError { message: String },
+    #[error("file changed externally")]
+    ExternalConflict,
+    #[error("I/O error: {message}")]
+    IoError { message: String },
     /// Filesystem or I/O operation failure.
     #[error("I/O error: {message}")]
     Io { message: String },
@@ -24,8 +36,16 @@ pub enum CoreError {
 
 impl From<std::io::Error> for CoreError {
     fn from(err: std::io::Error) -> Self {
-        Self::Io {
-            message: err.to_string(),
+        match err.kind() {
+            std::io::ErrorKind::NotFound => Self::NotFound {
+                target: err.to_string(),
+            },
+            std::io::ErrorKind::PermissionDenied => Self::PermissionDenied {
+                message: err.to_string(),
+            },
+            _ => Self::IoError {
+                message: err.to_string(),
+            },
         }
     }
 }

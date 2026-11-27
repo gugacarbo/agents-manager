@@ -4,11 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 
 interface CommandPaletteProps {
-	onNavigate: (path: "/" | "/editor") => void;
+	onNavigate: (path: "/" | "/demo") => void;
+	showDemo: boolean;
 	onRefreshAgents: () => void;
 }
 
 export function CommandPalette({
+	showDemo,
 	onNavigate,
 	onRefreshAgents,
 }: CommandPaletteProps) {
@@ -62,7 +64,7 @@ export function CommandPalette({
 			<dialog
 				ref={dialog}
 				aria-label="Command palette"
-				className="fixed inset-x-0 top-[min(12vh,6rem)] mx-auto w-[min(32rem,calc(100%-2rem))] rounded-xl border border-border bg-popover p-0 text-popover-foreground shadow-2xl backdrop:bg-slate-950/75"
+				className="fixed inset-x-0 top-[min(12vh,6rem)] mx-auto w-[min(32rem,calc(100%-2rem))] rounded-xl border border-input bg-popover p-0 text-popover-foreground shadow-2xl backdrop:bg-black/65"
 				onClose={() => {
 					if (!dialog.current?.open) setOpen(false);
 				}}
@@ -99,16 +101,18 @@ export function CommandPalette({
 								<LayoutGrid className="size-4" aria-hidden="true" />
 								Go to Agents
 							</Command.Item>
-							<Command.Item
-								className={itemStyle}
-								onSelect={() => {
-									dialog.current?.close();
-									onNavigate("/editor");
-								}}
-							>
-								<FileCode2 className="size-4" aria-hidden="true" />
-								Open Diff demo
-							</Command.Item>
+							{showDemo && (
+								<Command.Item
+									className={itemStyle}
+									onSelect={() => {
+										dialog.current?.close();
+										onNavigate("/demo");
+									}}
+								>
+									<FileCode2 className="size-4" aria-hidden="true" />
+									Open Diff demo
+								</Command.Item>
+							)}
 							<Command.Item
 								className={itemStyle}
 								onSelect={() => {

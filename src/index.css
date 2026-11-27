@@ -7,6 +7,7 @@
 	--color-foreground: var(--foreground);
 	--color-card: var(--card);
 	--color-card-foreground: var(--card-foreground);
+	--color-sidebar: var(--sidebar);
 	--color-popover: var(--popover);
 	--color-popover-foreground: var(--popover-foreground);
 	--color-primary: var(--primary);
@@ -21,6 +22,8 @@
 	--color-destructive-foreground: var(--destructive-foreground);
 	--color-border: var(--border);
 	--color-input: var(--input);
+	--color-success: var(--success);
+	--color-success-foreground: var(--success-foreground);
 	--color-ring: var(--ring);
 	--color-selection: var(--selection);
 	--color-selection-foreground: var(--selection-foreground);
@@ -31,51 +34,60 @@
 
 :root {
 	--radius: 0.625rem;
-	--background: #f8fafc;
-	--foreground: #0f172a;
-	--card: #ffffff;
-	--card-foreground: #0f172a;
-	--popover: #ffffff;
-	--popover-foreground: #0f172a;
-	--primary: #0f172a;
-	--primary-foreground: #f8fafc;
-	--secondary: #f1f5f9;
-	--secondary-foreground: #0f172a;
-	--muted: #f1f5f9;
-	--muted-foreground: #475569;
-	--accent: #e2e8f0;
-	--accent-foreground: #0f172a;
-	--destructive: #dc2626;
-	--destructive-foreground: #f8fafc;
-	--border: #cbd5e1;
-	--input: #cbd5e1;
-	--ring: #64748b;
-	--selection: #dbeafe;
-	--selection-foreground: #0f172a;
+	--background: #f7f6f1;
+	--foreground: #24231e;
+	--card: #fffefa;
+	--card-foreground: var(--foreground);
+	--sidebar: #eeece4;
+	--popover: var(--card);
+	--popover-foreground: var(--foreground);
+	--primary: #84500b;
+	--primary-foreground: #fffaf0;
+	--secondary: #eeebe2;
+	--secondary-foreground: var(--foreground);
+	--muted: #f1eee6;
+	--muted-foreground: #625e54;
+	--accent: #eae5d9;
+	--accent-foreground: var(--foreground);
+	--destructive: #a52c28;
+	--destructive-foreground: #fff8f6;
+	--border: #dcd7c9;
+	--input: #8c8372;
+	--ring: #996018;
+	--success: #dcfce7;
+	--success-foreground: #166534;
+	--selection: #f3e2c1;
+	--selection-foreground: #68420d;
+	--diff-added: #dcfce7;
+	--diff-added-foreground: #14532d;
+	--diff-removed: #ffe4e6;
+	--diff-removed-foreground: #881337;
 }
 
 .dark {
-	--background: #020617;
-	--foreground: #f8fafc;
-	--card: #0f172a;
-	--card-foreground: #f8fafc;
-	--popover: #0f172a;
-	--popover-foreground: #f8fafc;
-	--primary: #e2e8f0;
-	--primary-foreground: #0f172a;
-	--secondary: #1e293b;
-	--secondary-foreground: #f8fafc;
-	--muted: #1e293b;
-	--muted-foreground: #94a3b8;
-	--accent: #1e293b;
-	--accent-foreground: #f8fafc;
-	--destructive: #ef4444;
-	--destructive-foreground: #f8fafc;
-	--border: #1e293b;
-	--input: #1e293b;
-	--ring: #60a5fa;
-	--selection: #1e3a5f;
-	--selection-foreground: #f8fafc;
+	--background: #171815;
+	--foreground: #f2efe6;
+	--card: #20211d;
+	--sidebar: #1b1c18;
+	--primary: #eac17b;
+	--primary-foreground: #292014;
+	--secondary: #2b2b25;
+	--muted: #282923;
+	--muted-foreground: #b0ad9f;
+	--accent: #303027;
+	--destructive: #f49690;
+	--destructive-foreground: #321b18;
+	--border: #36372f;
+	--input: #6b695b;
+	--ring: #eac17b;
+	--success: #25372b;
+	--success-foreground: #acdab5;
+	--selection: #382f22;
+	--selection-foreground: #f2cc8b;
+	--diff-added: #123428;
+	--diff-added-foreground: #a7f3d0;
+	--diff-removed: #3f202d;
+	--diff-removed-foreground: #fecdd3;
 }
 
 body {
@@ -98,12 +110,16 @@ body {
 	outline-offset: 2px;
 }
 
+.workspace-shell {
+	grid-template-columns: 13.5rem minmax(0, 1fr);
+}
+
 .agent-inventory-grid {
 	grid-template-columns: minmax(0, 1fr) auto;
 }
 @media (min-width: 64rem) {
 	.agent-inventory-grid {
-		grid-template-columns: minmax(0, 1fr) 10rem minmax(0, 2fr);
+		grid-template-columns: minmax(9rem, 0.9fr) minmax(0, 1.5fr) 8rem;
 	}
 }
 
@@ -111,20 +127,12 @@ body {
 	height: clamp(16rem, 55vh, 32rem);
 }
 .diff-added {
-	background: #dcfce7;
-	color: #14532d;
+	background: var(--diff-added);
+	color: var(--diff-added-foreground);
 }
 .diff-removed {
-	background: #ffe4e6;
-	color: #881337;
-}
-.dark .diff-added {
-	background: #123428;
-	color: #a7f3d0;
-}
-.dark .diff-removed {
-	background: #3f202d;
-	color: #fecdd3;
+	background: var(--diff-removed);
+	color: var(--diff-removed-foreground);
 }
 
 @media (prefers-reduced-motion: reduce) {

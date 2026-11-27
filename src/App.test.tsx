@@ -7,7 +7,7 @@ import {
 	screen,
 	within,
 } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { CodeEditor } from "./components/CodeEditor";
 import { agentKindSchema, agentSummarySchema } from "./lib/schemas";
@@ -225,5 +225,21 @@ describe("CodeEditor", () => {
 	it("mounts CodeMirror editor with initial content", () => {
 		render(<CodeEditor value='{"ok": true}' language="json" />);
 		expect(screen.getByLabelText("Configuration editor")).toBeInTheDocument();
+	});
+});
+
+describe("secret masking", () => {
+	it("hides a UTF-8 secret without changing the editor value", () => {
+		const onChange = vi.fn();
+		render(
+			<CodeEditor
+				value={"é secret"}
+				secretSpans={[{ startByte: 3, endByte: 9, kind: "token" }]}
+				onChange={onChange}
+			/>,
+		);
+		expect(screen.queryByText("secret")).not.toBeInTheDocument();
+		expect(screen.getByText("••••••")).toBeInTheDocument();
+		expect(onChange).not.toHaveBeenCalled();
 	});
 });

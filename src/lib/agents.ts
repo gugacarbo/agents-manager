@@ -1,4 +1,4 @@
-import { type CoreError, commands } from "../bindings/tauri";
+import { commands } from "../bindings/tauri";
 import { type AgentSummary, agentSummarySchema } from "./schemas";
 
 const FALLBACK_AGENTS: AgentSummary[] = [
@@ -22,7 +22,7 @@ const FALLBACK_AGENTS: AgentSummary[] = [
 	},
 ];
 
-function isTauriRuntime(): boolean {
+export function isTauriRuntime(): boolean {
 	return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 
@@ -34,7 +34,10 @@ function formatIpcError(err: unknown): Error {
 		return new Error(err);
 	}
 	if (typeof err === "object" && err !== null) {
-		const coreErr = err as Partial<CoreError>;
+		const coreErr = err as Record<
+			string,
+			{ message?: string; path?: string; target?: string }
+		>;
 		if ("Io" in coreErr && coreErr.Io) {
 			return new Error(`I/O error: ${coreErr.Io.message}`);
 		}

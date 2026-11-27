@@ -7,6 +7,16 @@ import type { InvokeOptions } from "@tauri-apps/api/core";
 export const commands = {
 	/**  Lists all supported coding agents and their detection status under the user's home directory. */
 	listAgents: (options?: InvokeOptions) => __TAURI_INVOKE<AgentSummary_Serialize[]>("list_agents", undefined, options),
+	listAgentConfigs: (kind: AgentKind, options?: InvokeOptions) => __TAURI_INVOKE<ConfigFileEntry[]>("list_agent_configs", { kind }, options),
+	readConfigFile: (path: string, options?: InvokeOptions) => __TAURI_INVOKE<ConfigDocument>("read_config_file", { path }, options),
+	saveConfigFile: (request: SaveConfigRequest_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<SaveConfigResult>("save_config_file", { request }, options),
+	watchConfigFile: (path: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("watch_config_file", { path }, options),
+	listProjects: (options?: InvokeOptions) => __TAURI_INVOKE<ProjectSummary[]>("list_projects", undefined, options),
+	registerProject: (rootPath: string, options?: InvokeOptions) => __TAURI_INVOKE<ProjectSummary>("register_project", { rootPath }, options),
+	removeProject: (projectId: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("remove_project", { projectId }, options),
+	listProjectConfigs: (projectId: string, kind: AgentKind, options?: InvokeOptions) => __TAURI_INVOKE<ConfigFileEntry[]>("list_project_configs", { projectId, kind }, options),
+	previewStructuredSave: (request: StructuredSaveRequest_Deserialize, draftContent: string | null, options?: InvokeOptions) => __TAURI_INVOKE<StructuredPreviewResult>("preview_structured_save", { request, draftContent }, options),
+	saveStructuredConfig: (request: StructuredSaveRequest_Deserialize, draftContent: string | null, options?: InvokeOptions) => __TAURI_INVOKE<SaveConfigResult>("save_structured_config", { request, draftContent }, options),
 };
 
 /* Types */
@@ -32,21 +42,141 @@ export type AgentSummary_Serialize = {
 	configPath: string | null,
 };
 
+export type ConfigCategory = "mcps" | "skills" | "rules" | "settings";
+
+export type ConfigDocument = {
+	entry: ConfigFileEntry,
+	content: string,
+	sha256: string,
+	secretSpans: SecretSpan[],
+};
+
+export type ConfigFileEntry = {
+	agent: AgentKind,
+	category: ConfigCategory,
+	label: string,
+	path: string,
+	format: ConfigFormat,
+	exists: boolean,
+};
+
+export type ConfigFormat = "json" | "toml" | "markdown";
+
 /**  Domain-level errors produced by `agents-manager-core`. */
-export type CoreError = 
+export type CoreError = ({ DuplicateProject: {
+	id: string,
+	root_path: string,
+} }) & { InvalidPath?: never; Io?: never; IoError?: never; NotFound?: never; PathNotAllowed?: never; PermissionDenied?: never; Serialization?: never; SyntaxError?: never } | ({ PermissionDenied: {
+	message: string,
+} }) & { DuplicateProject?: never; InvalidPath?: never; Io?: never; IoError?: never; NotFound?: never; PathNotAllowed?: never; Serialization?: never; SyntaxError?: never } | ({ PathNotAllowed: {
+	path: string,
+} }) & { DuplicateProject?: never; InvalidPath?: never; Io?: never; IoError?: never; NotFound?: never; PermissionDenied?: never; Serialization?: never; SyntaxError?: never } | ({ SyntaxError: {
+	message: string,
+} }) & { DuplicateProject?: never; InvalidPath?: never; Io?: never; IoError?: never; NotFound?: never; PathNotAllowed?: never; PermissionDenied?: never; Serialization?: never } | "ExternalConflict" | ({ IoError: {
+	message: string,
+} }) & { DuplicateProject?: never; InvalidPath?: never; Io?: never; NotFound?: never; PathNotAllowed?: never; PermissionDenied?: never; Serialization?: never; SyntaxError?: never } |
 /**  Filesystem or I/O operation failure. */
 ({ Io: {
 	message: string,
-} }) & { InvalidPath?: never; NotFound?: never; Serialization?: never } | 
+} }) & { DuplicateProject?: never; InvalidPath?: never; IoError?: never; NotFound?: never; PathNotAllowed?: never; PermissionDenied?: never; Serialization?: never; SyntaxError?: never } |
 /**  Serialization or deserialization failure. */
 ({ Serialization: {
 	message: string,
-} }) & { InvalidPath?: never; Io?: never; NotFound?: never } | 
+} }) & { DuplicateProject?: never; InvalidPath?: never; Io?: never; IoError?: never; NotFound?: never; PathNotAllowed?: never; PermissionDenied?: never; SyntaxError?: never } |
 /**  Invalid or inaccessible filesystem path. */
 ({ InvalidPath: {
 	path: string,
-} }) & { Io?: never; NotFound?: never; Serialization?: never } | 
+} }) & { DuplicateProject?: never; Io?: never; IoError?: never; NotFound?: never; PathNotAllowed?: never; PermissionDenied?: never; Serialization?: never; SyntaxError?: never } |
 /**  Expected resource was not found. */
 ({ NotFound: {
 	target: string,
-} }) & { InvalidPath?: never; Io?: never; Serialization?: never };
+} }) & { DuplicateProject?: never; InvalidPath?: never; Io?: never; IoError?: never; PathNotAllowed?: never; PermissionDenied?: never; Serialization?: never; SyntaxError?: never };
+
+export type McpEnvVar = {
+	key: string,
+	value: string,
+	isSecret: boolean,
+	isEnvRef: boolean,
+};
+
+export type McpServerConfig = McpServerConfig_Serialize | McpServerConfig_Deserialize;
+
+export type McpServerConfig_Deserialize = {
+	name: string,
+	transport: McpTransport,
+	command?: string | null,
+	args?: string[] | null,
+	url?: string | null,
+	env: McpEnvVar[],
+	enabled: boolean,
+};
+
+export type McpServerConfig_Serialize = {
+	name: string,
+	transport: McpTransport,
+	command: string | null,
+	args: string[] | null,
+	url: string | null,
+	env: McpEnvVar[],
+	enabled: boolean,
+};
+
+export type McpTransport = "stdio" | "http";
+
+export type ProjectSummary = {
+	id: string,
+	name: string,
+	rootPath: string,
+	addedAt: string,
+	available: boolean,
+};
+
+export type SaveConfigRequest = SaveConfigRequest_Serialize | SaveConfigRequest_Deserialize;
+
+export type SaveConfigRequest_Deserialize = {
+	path: string,
+	content: string,
+	expectedSha256: string,
+	forceOverwrite?: boolean | null,
+};
+
+export type SaveConfigRequest_Serialize = {
+	path: string,
+	content: string,
+	expectedSha256: string,
+	forceOverwrite: boolean | null,
+};
+
+export type SaveConfigResult = {
+	sha256: string,
+	backupPath: string,
+};
+
+export type SecretSpan = {
+	startByte: number,
+	endByte: number,
+	kind: string,
+};
+
+export type StructuredPreviewResult = {
+	content: string,
+	secretSpans: SecretSpan[],
+};
+
+export type StructuredSaveRequest = StructuredSaveRequest_Serialize | StructuredSaveRequest_Deserialize;
+
+export type StructuredSaveRequest_Deserialize = {
+	path: string,
+	expectedSha256: string,
+	mcpServers?: McpServerConfig_Deserialize[] | null,
+	settingsPatch?: { [key in string]: unknown } | null,
+	forceOverwrite?: boolean | null,
+};
+
+export type StructuredSaveRequest_Serialize = {
+	path: string,
+	expectedSha256: string,
+	mcpServers: McpServerConfig_Serialize[] | null,
+	settingsPatch: { [key in string]: unknown } | null,
+	forceOverwrite: boolean | null,
+};

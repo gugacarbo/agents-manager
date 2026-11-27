@@ -1,50 +1,28 @@
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { json } from "@codemirror/lang-json";
 import { markdown } from "@codemirror/lang-markdown";
-import {
-	defaultHighlightStyle,
-	syntaxHighlighting,
-} from "@codemirror/language";
 import { MergeView } from "@codemirror/merge";
 import {
 	Annotation,
+	Compartment,
 	EditorState,
 	type Extension,
 	Transaction,
 } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers } from "@codemirror/view";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import {
+	redactSecrets,
+	type SecretSpan,
+	secretField,
+	setSecretsVisible,
+} from "@/lib/editor-secrets";
+import { editorHighlighting, editorTheme } from "@/lib/editor-theme";
 import { cn } from "@/lib/utils";
 
-type EditorLanguage = "json" | "markdown";
+type EditorLanguage = "json" | "toml" | "markdown";
+const EMPTY_SPANS: SecretSpan[] = [];
 const externalUpdate = Annotation.define<boolean>();
-
-const darkEditorTheme = EditorView.theme(
-	{
-		"&": {
-			backgroundColor: "#0f172a",
-			color: "#e2e8f0",
-			fontSize: "13px",
-			height: "100%",
-		},
-		".cm-scroller": {
-			fontFamily:
-				'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
-		},
-		".cm-gutters": {
-			backgroundColor: "#020617",
-			color: "#64748b",
-			borderRight: "1px solid #1e293b",
-		},
-		".cm-activeLine": {
-			backgroundColor: "rgba(30, 41, 59, 0.45)",
-		},
-		".cm-cursor": {
-			borderLeftColor: "#f8fafc",
-		},
-	},
-	{ dark: true },
-);
 
 function languageExtension(language: EditorLanguage): Extension {
 	return language === "json" ? json() : markdown();
@@ -54,9 +32,11 @@ interface CodeEditorProps {
 	value: string;
 	language?: EditorLanguage;
 	readOnly?: boolean;
-	onChange?: (nextValue: string) => void;
+	onChange?: (nextValue: string, maskedValue: string) => void;
 	className?: string;
 	ariaLabel?: string;
+	secretSpans?: SecretSpan[];
+	revealSecrets?: boolean;
 }
 
 export function CodeEditor({
@@ -66,11 +46,18 @@ export function CodeEditor({
 	onChange,
 	className,
 	ariaLabel = "Configuration editor",
+	secretSpans = EMPTY_SPANS,
+	revealSecrets = false,
 }: CodeEditorProps) {
 	const containerRef = useRef<HTMLDivElement | null>(null);
 	const viewRef = useRef<EditorView | null>(null);
 	const onChangeRef = useRef(onChange);
 	const valueRef = useRef(value);
+	const revealRef = useRef(revealSecrets);
+	const readOnlyRef = useRef(readOnly);
+	const [readOnlyCompartment] = useState(() => new Compartment());
+	readOnlyRef.current = readOnly;
+	revealRef.current = revealSecrets;
 	valueRef.current = value;
 
 	useEffect(() => {
@@ -83,15 +70,21 @@ export function CodeEditor({
 			return;
 		}
 
+		const secrets = secretField(
+			valueRef.current,
+			secretSpans,
+			revealRef.current,
+		);
 		const extensions: Extension[] = [
 			lineNumbers(),
+			secrets,
 			history(),
-			syntaxHighlighting(defaultHighlightStyle),
+			editorHighlighting,
 			keymap.of([...defaultKeymap, ...historyKeymap]),
 			languageExtension(language),
-			darkEditorTheme,
+			editorTheme,
 			EditorView.contentAttributes.of({ "aria-label": ariaLabel }),
-			EditorState.readOnly.of(readOnly),
+			readOnlyCompartment.of(EditorState.readOnly.of(readOnlyRef.current)),
 			EditorView.updateListener.of((update) => {
 				if (
 					update.docChanged &&
@@ -99,7 +92,11 @@ export function CodeEditor({
 						(transaction) => !transaction.annotation(externalUpdate),
 					)
 				) {
-					onChangeRef.current?.(update.state.doc.toString());
+					const content = update.state.doc.toString();
+					onChangeRef.current?.(
+						content,
+						redactSecrets(content, update.state.field(secrets).ranges),
+					);
 				}
 			}),
 		];
@@ -118,7 +115,19 @@ export function CodeEditor({
 			view.destroy();
 			viewRef.current = null;
 		};
-	}, [ariaLabel, language, readOnly]);
+	}, [ariaLabel, readOnlyCompartment, language, secretSpans]);
+
+	useEffect(() => {
+		viewRef.current?.dispatch({
+			effects: readOnlyCompartment.reconfigure(
+				EditorState.readOnly.of(readOnly),
+			),
+		});
+	}, [readOnlyCompartment, readOnly]);
+
+	useEffect(() => {
+		viewRef.current?.dispatch({ effects: setSecretsVisible.of(revealSecrets) });
+	}, [revealSecrets]);
 
 	useEffect(() => {
 		const view = viewRef.current;
@@ -167,9 +176,9 @@ export function DiffViewer({
 
 		const sharedExtensions: Extension[] = [
 			lineNumbers(),
-			syntaxHighlighting(defaultHighlightStyle),
+			editorHighlighting,
 			languageExtension(language),
-			darkEditorTheme,
+			editorTheme,
 			EditorState.readOnly.of(true),
 		];
 

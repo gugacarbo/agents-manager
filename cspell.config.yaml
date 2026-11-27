@@ -27,6 +27,7 @@ ignorePaths:
   - playwright-report/**
   - node_modules/**
 words:
+  - canonicalização
   - claude
   - clsx
   - cmdk
@@ -42,6 +43,7 @@ words:
   - lintstagedrc
   - lucide
   - modelcontextprotocol
+  - noninteractive
   - serde
   - serialização
   - shadcn
@@ -92,3 +94,5 @@ words:
   - opensource
   - dev
   - dotenv
+  - smol
+  - unlisten

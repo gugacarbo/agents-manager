@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { RefreshCw } from "lucide-react";
+import { Monitor, RefreshCw } from "lucide-react";
 import { useRef, useState } from "react";
 import {
 	EmptyState,
@@ -8,7 +8,7 @@ import {
 	PageHeader,
 } from "@/components/patterns";
 import { Button } from "@/components/ui/button";
-import { listAgents } from "@/lib/agents";
+import { isTauriRuntime, listAgents } from "@/lib/agents";
 import { AgentFilterForm, type AgentFilterValues } from "./AgentFilterForm";
 import { AgentInventory } from "./AgentsTable";
 
@@ -39,18 +39,13 @@ export function AgentsPage() {
 	}
 
 	return (
-		<section aria-labelledby="agents-title" className="space-y-5">
+		<section aria-labelledby="agents-title" className="space-y-6">
 			<PageHeader
 				title="Local agents"
 				titleId="agents-title"
-				description="Find configuration folders for supported coding agents."
+				description="Find the native configuration folders for your coding agents."
 				actions={
-					<Button
-						variant="outline"
-						size="sm"
-						disabled={isFetching}
-						onClick={refresh}
-					>
+					<Button className="h-10" disabled={isFetching} onClick={refresh}>
 						<RefreshCw className="size-4" aria-hidden="true" />
 						{data && isFetching ? "Refreshing…" : "Refresh"}
 					</Button>
@@ -84,24 +79,35 @@ export function AgentsPage() {
 			)}
 
 			{data && matches && (
-				<div className="space-y-3">
-					<AgentFilterForm
-						values={filter}
-						onFilterChange={setFilter}
-						searchRef={searchRef}
-					/>
-					<p role="status" className="text-xs text-muted-foreground">
-						{isFetching && <span className="sr-only">Refreshing… </span>}
-						<span>
-							{data.filter((agent) => agent.detected).length} of {data.length}{" "}
-							configurations detected
-						</span>
-						{hasFilters && ` · ${matches.length} matching`}
-					</p>
+				<section
+					aria-labelledby="inventory-title"
+					className="rounded-xl border border-border bg-card"
+				>
+					<div className="space-y-4 px-4 py-5 sm:px-6">
+						<div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+							<h2 id="inventory-title" className="text-base font-semibold">
+								Configuration folders
+							</h2>
+							<p role="status" className="text-xs text-muted-foreground">
+								{isFetching && <span className="sr-only">Refreshing… </span>}
+								<span>
+									{data.filter((agent) => agent.detected).length} of{" "}
+									{data.length} configurations detected
+								</span>
+								{hasFilters && ` · ${matches.length} matching`}
+							</p>
+						</div>
+						<AgentFilterForm
+							values={filter}
+							onFilterChange={setFilter}
+							searchRef={searchRef}
+						/>
+					</div>
 					{matches.length > 0 ? (
 						<AgentInventory agents={matches} />
 					) : (
 						<EmptyState
+							className="mx-4 mb-4 border-dashed bg-background sm:mx-6 sm:mb-6"
 							title={
 								hasFilters
 									? "No agents match your filters."
@@ -123,7 +129,13 @@ export function AgentsPage() {
 							}
 						/>
 					)}
-				</div>
+				</section>
+			)}
+			{!isTauriRuntime() && (
+				<p className="flex items-center gap-2 text-xs text-muted-foreground">
+					<Monitor className="size-4 shrink-0" aria-hidden="true" />
+					Local configuration folders are detected in the desktop app.
+				</p>
 			)}
 		</section>
 	);
