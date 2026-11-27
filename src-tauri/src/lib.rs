@@ -53,6 +53,8 @@ fn specta_builder<R: tauri::Runtime>() -> Builder<R> {
     }
     #[cfg(target_os = "linux")]
     return build!(
+        commands::claude_desktop_conversations::list_claude_desktop_conversations,
+        commands::claude_desktop_conversations::import_claude_desktop_conversations,
         commands::claude_desktop_quotas::list_claude_desktop_quota_profiles,
         commands::claude_desktop_quotas::create_claude_desktop_quota_profile,
         commands::claude_desktop_quotas::open_claude_desktop_quota_login,
@@ -192,6 +194,11 @@ mod tests {
         assert!(content.contains("AppPreferences"));
         assert!(content.contains("AgentSummary"));
         assert!(content.contains("CoreError"));
+        #[cfg(target_os = "linux")]
+        {
+            assert!(content.contains("listClaudeDesktopConversations"));
+            assert!(content.contains("importClaudeDesktopConversations"));
+        }
     }
 }
 

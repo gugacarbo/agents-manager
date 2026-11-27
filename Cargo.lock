@@ -36,6 +36,7 @@ dependencies = [
  "directories",
  "notify",
  "serde",
+ "serde_json",
  "specta",
  "specta-typescript",
  "tauri",

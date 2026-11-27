@@ -22,6 +22,8 @@ const api = vi.hoisted(() => ({
 	openProfile: vi.fn(),
 	link: vi.fn(),
 	refresh: vi.fn(),
+	listConversations: vi.fn(),
+	importConversations: vi.fn(),
 }));
 vi.mock("@/lib/claude-accounts", () => ({
 	listClaudeDesktopQuotaProfiles: api.list,
@@ -30,6 +32,8 @@ vi.mock("@/lib/claude-accounts", () => ({
 	openClaudeDesktopQuotaProfile: api.openProfile,
 	linkClaudeDesktopQuotaAccount: api.link,
 	refreshClaudeDesktopQuota: api.refresh,
+	listClaudeDesktopConversations: api.listConversations,
+	importClaudeDesktopConversations: api.importConversations,
 }));
 
 function renderQuotas() {
@@ -87,10 +91,417 @@ beforeEach(() => {
 	api.openProfile.mockResolvedValue(undefined);
 	api.link.mockResolvedValue(profile("default", historical, true));
 	api.refresh.mockResolvedValue(result("updated"));
+	api.listConversations.mockResolvedValue({
+		sessions: [],
+		unavailableOrigins: [],
+	});
+	api.importConversations.mockResolvedValue([]);
 });
 afterEach(cleanup);
 
 describe("Claude Desktop quota", () => {
+	const work = { ...historical, account: { display_name: "Work" } };
+	const twoAccounts = () => {
+		api.list.mockResolvedValue([
+			profile("default", historical, true),
+			profile("work", work),
+		]);
+		api.refresh.mockImplementation(async (id: string) =>
+			result("updated", id === "work" ? work : historical),
+		);
+	};
+	const enableImport = async () => {
+		fireEvent.click(
+			await screen.findByRole("checkbox", {
+				name: "Import conversations when switching",
+			}),
+		);
+	};
+
+	it("lists nothing until the import opt-in is enabled, and cancelling never lists or imports", async () => {
+		twoAccounts();
+		renderQuotas();
+		await screen.findAllByText(/latest collection/i);
+		expect(api.listConversations).not.toHaveBeenCalled();
+		expect(
+			screen.queryByRole("combobox", { name: "Source account" }),
+		).toBeNull();
+		fireEvent.click(
+			screen.getByRole("checkbox", {
+				name: "Import conversations when switching",
+			}),
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+		expect(api.listConversations).not.toHaveBeenCalled();
+		expect(api.importConversations).not.toHaveBeenCalled();
+		expect(
+			screen.queryByRole("combobox", { name: "Source account" }),
+		).toBeNull();
+		// The simple switch stays available.
+		const openWork = await screen.findByRole("button", { name: "Open Work" });
+		expect(openWork).toBeVisible();
+		fireEvent.click(openWork);
+		await waitFor(() => expect(api.openProfile).toHaveBeenCalledWith("work"));
+	});
+
+	it("selects and confirms conversation imports before switching, then shows per-session results", async () => {
+		twoAccounts();
+		api.listConversations.mockResolvedValue({
+			sessions: [
+				{
+					id: "session-a",
+					title: "Design review",
+					origin: "SSH: build host",
+					available: true,
+					reason: null,
+				},
+				{
+					id: "session-b",
+					title: "Active session",
+					origin: "Local",
+					available: false,
+					reason: "Session is active",
+				},
+			],
+			unavailableOrigins: [],
+		});
+		api.importConversations.mockResolvedValue([
+			{ id: "session-a", status: "imported", reason: null },
+		]);
+		renderQuotas();
+		await screen.findAllByText(/latest collection/i);
+		await enableImport();
+		fireEvent.change(screen.getByRole("combobox", { name: "Source account" }), {
+			target: { value: "default" },
+		});
+		fireEvent.change(
+			screen.getByRole("combobox", { name: "Destination account" }),
+			{
+				target: { value: "work" },
+			},
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Find conversations" }));
+		expect(await screen.findByText("Design review")).toBeVisible();
+		expect(screen.getByText("SSH: build host")).toBeVisible();
+		expect(screen.getByText(/Session is active/)).toBeVisible();
+		const checkbox = screen.getByRole("checkbox", { name: /Design review/ });
+		fireEvent.click(checkbox);
+		fireEvent.click(
+			screen.getByRole("button", { name: "Import selected conversations" }),
+		);
+		expect(
+			await screen.findByRole("dialog", {
+				name: "Confirm conversation import",
+			}),
+		).toBeVisible();
+		fireEvent.click(screen.getByRole("button", { name: "Confirm import" }));
+		expect(await screen.findByText(/Imported: Design review/)).toBeVisible();
+		expect(api.importConversations).toHaveBeenCalledWith("default", "work", [
+			"session-a",
+		]);
+		expect(
+			within(
+				screen.getByRole("region", { name: "Conversation import" }),
+			).getByRole("button", { name: "Open destination account" }),
+		).toBeVisible();
+	});
+
+	it("retries only unavailable conversations after a partial import", async () => {
+		twoAccounts();
+		api.listConversations.mockResolvedValue({
+			sessions: [
+				{
+					id: "ready",
+					title: "Ready session",
+					origin: "Local",
+					available: true,
+					reason: null,
+				},
+				{
+					id: "remote",
+					title: "Remote session",
+					origin: "SSH: builder",
+					available: true,
+					reason: null,
+				},
+			],
+			unavailableOrigins: [],
+		});
+		api.importConversations
+			.mockResolvedValueOnce([
+				{ id: "ready", status: "imported", reason: null },
+				{ id: "remote", status: "unavailable", reason: "Host is offline" },
+			])
+			.mockResolvedValueOnce([
+				{ id: "remote", status: "imported", reason: null },
+			]);
+		renderQuotas();
+		await screen.findAllByText(/latest collection/i);
+		await enableImport();
+		fireEvent.click(screen.getByRole("button", { name: "Find conversations" }));
+		fireEvent.click(
+			await screen.findByRole("checkbox", { name: /Ready session/ }),
+		);
+		fireEvent.click(screen.getByRole("checkbox", { name: /Remote session/ }));
+		fireEvent.click(
+			screen.getByRole("button", { name: "Import selected conversations" }),
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Confirm import" }));
+		fireEvent.click(
+			await screen.findByRole("button", {
+				name: "Retry unavailable conversations",
+			}),
+		);
+		await waitFor(() =>
+			expect(api.importConversations).toHaveBeenCalledTimes(2),
+		);
+		expect(api.importConversations).toHaveBeenNthCalledWith(
+			2,
+			"default",
+			"work",
+			["remote"],
+		);
+		expect(await screen.findByText("Imported: Remote session")).toBeVisible();
+	});
+
+	// --- Edge case 3: unavailable origin/session --------------------------------------------------------
+
+	it("EC3 shows unavailable sessions and origins with a reason, never imports them, and keeps the switch available", async () => {
+		twoAccounts();
+		api.listConversations.mockResolvedValue({
+			sessions: [
+				{
+					id: "local-ok",
+					title: "Local session",
+					origin: "Local",
+					available: true,
+					reason: null,
+				},
+				{
+					id: "remote-down",
+					title: "Remote session",
+					origin: "SSH: builder",
+					available: false,
+					reason: "Host did not answer",
+				},
+			],
+			unavailableOrigins: ["builder"],
+		});
+		renderQuotas();
+		await screen.findAllByText(/latest collection/i);
+		await enableImport();
+		fireEvent.click(screen.getByRole("button", { name: "Find conversations" }));
+		expect(
+			await screen.findByText(/Unavailable: Host did not answer/),
+		).toBeVisible();
+		expect(screen.getByText("builder")).toBeVisible();
+		const remote = screen.getByRole("checkbox", { name: /Remote session/ });
+		expect(remote).toBeDisabled();
+		fireEvent.click(screen.getByRole("checkbox", { name: /Local session/ }));
+		fireEvent.click(
+			screen.getByRole("button", { name: "Import selected conversations" }),
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Confirm import" }));
+		await waitFor(() =>
+			expect(api.importConversations).toHaveBeenCalledTimes(1),
+		);
+		expect(api.importConversations).toHaveBeenCalledWith("default", "work", [
+			"local-ok",
+		]);
+		expect(
+			screen.getByRole("button", { name: "Open destination account" }),
+		).toBeVisible();
+	});
+
+	it("EC3 keeps the switch available when listing fails and offers to retry", async () => {
+		twoAccounts();
+		api.listConversations.mockRejectedValue("desktop_running");
+		renderQuotas();
+		await screen.findAllByText(/latest collection/i);
+		await enableImport();
+		fireEvent.click(screen.getByRole("button", { name: "Find conversations" }));
+		expect(await screen.findByRole("alert")).toHaveTextContent(
+			/could not list/i,
+		);
+		const open = screen.getByRole("button", {
+			name: "Open destination account",
+		});
+		expect(open).toBeVisible();
+		expect(api.importConversations).not.toHaveBeenCalled();
+		fireEvent.click(open);
+		await waitFor(() => expect(api.openProfile).toHaveBeenCalledWith("work"));
+	});
+
+	// --- Edge case 4: already existing / deleted / newer in the destination -------------------------------
+
+	it("EC4 shows skipped sessions with their reason and does not import them again", async () => {
+		twoAccounts();
+		api.listConversations.mockResolvedValue({
+			sessions: [
+				{
+					id: "existing",
+					title: "Existing session",
+					origin: "Local",
+					available: true,
+					reason: null,
+				},
+			],
+			unavailableOrigins: [],
+		});
+		api.importConversations.mockResolvedValue([
+			{
+				id: "existing",
+				status: "skipped",
+				reason: "The destination already has this conversation.",
+			},
+		]);
+		renderQuotas();
+		await screen.findAllByText(/latest collection/i);
+		await enableImport();
+		fireEvent.click(screen.getByRole("button", { name: "Find conversations" }));
+		fireEvent.click(
+			await screen.findByRole("checkbox", { name: /Existing session/ }),
+		);
+		fireEvent.click(
+			screen.getByRole("button", { name: "Import selected conversations" }),
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Confirm import" }));
+		expect(
+			await screen.findByText(
+				/Skipped: Existing session — The destination already has this conversation/,
+			),
+		).toBeVisible();
+		expect(
+			screen.queryByRole("button", {
+				name: "Retry unavailable conversations",
+			}),
+		).toBeNull();
+	});
+
+	// --- Edge case 5: individual failure --------------------------------------------------------------------
+
+	it("EC5 shows an individual failure and retries only that session", async () => {
+		twoAccounts();
+		api.listConversations.mockResolvedValue({
+			sessions: [
+				{
+					id: "ok",
+					title: "Good session",
+					origin: "Local",
+					available: true,
+					reason: null,
+				},
+				{
+					id: "broken",
+					title: "Broken session",
+					origin: "Local",
+					available: true,
+					reason: null,
+				},
+			],
+			unavailableOrigins: [],
+		});
+		api.importConversations
+			.mockResolvedValueOnce([
+				{ id: "ok", status: "imported", reason: null },
+				{
+					id: "broken",
+					status: "unavailable",
+					reason: "The conversation could not be written.",
+				},
+			])
+			.mockResolvedValueOnce([
+				{ id: "broken", status: "imported", reason: null },
+			]);
+		renderQuotas();
+		await screen.findAllByText(/latest collection/i);
+		await enableImport();
+		fireEvent.click(screen.getByRole("button", { name: "Find conversations" }));
+		fireEvent.click(
+			await screen.findByRole("checkbox", { name: /Good session/ }),
+		);
+		fireEvent.click(screen.getByRole("checkbox", { name: /Broken session/ }));
+		fireEvent.click(
+			screen.getByRole("button", { name: "Import selected conversations" }),
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Confirm import" }));
+		expect(
+			await screen.findByText(
+				/Unavailable: Broken session — The conversation could not be written/,
+			),
+		).toBeVisible();
+		fireEvent.click(
+			screen.getByRole("button", { name: "Retry unavailable conversations" }),
+		);
+		await waitFor(() =>
+			expect(api.importConversations).toHaveBeenCalledTimes(2),
+		);
+		expect(api.importConversations).toHaveBeenLastCalledWith(
+			"default",
+			"work",
+			["broken"],
+		);
+	});
+
+	it("EC5 keeps the switch available when the whole import call fails", async () => {
+		twoAccounts();
+		api.listConversations.mockResolvedValue({
+			sessions: [
+				{
+					id: "one",
+					title: "Only session",
+					origin: "Local",
+					available: true,
+					reason: null,
+				},
+			],
+			unavailableOrigins: [],
+		});
+		api.importConversations.mockRejectedValue("storage_unavailable");
+		renderQuotas();
+		await screen.findAllByText(/latest collection/i);
+		await enableImport();
+		fireEvent.click(screen.getByRole("button", { name: "Find conversations" }));
+		fireEvent.click(
+			await screen.findByRole("checkbox", { name: /Only session/ }),
+		);
+		fireEvent.click(
+			screen.getByRole("button", { name: "Import selected conversations" }),
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Confirm import" }));
+		expect(await screen.findByRole("alert")).toHaveTextContent(
+			/could not finish/i,
+		);
+		expect(
+			screen.getByRole("button", { name: "Open destination account" }),
+		).toBeVisible();
+		fireEvent.click(
+			screen.getByRole("button", { name: "Retry unavailable conversations" }),
+		);
+		await waitFor(() =>
+			expect(api.importConversations).toHaveBeenCalledTimes(2),
+		);
+		expect(api.importConversations).toHaveBeenLastCalledWith(
+			"default",
+			"work",
+			["one"],
+		);
+	});
+
+	// --- Edge case 6: import disabled or cancelled ---------------------------------------------------------
+
+	it("EC6 leaves the import off by default: no listing, no import, and the plain switch works", async () => {
+		twoAccounts();
+		renderQuotas();
+		await screen.findAllByText(/latest collection/i);
+		expect(api.listConversations).not.toHaveBeenCalled();
+		expect(api.importConversations).not.toHaveBeenCalled();
+		expect(
+			screen.queryByRole("button", { name: "Find conversations" }),
+		).toBeNull();
+		fireEvent.click(await screen.findByRole("button", { name: "Open Work" }));
+		await waitFor(() => expect(api.openProfile).toHaveBeenCalledWith("work"));
+	});
 	it("adds an isolated opening to the default account without creating another quota row", async () => {
 		api.list.mockResolvedValue([
 			profile("default", historical, true),

@@ -158,3 +158,65 @@ export async function refreshClaudeDesktopQuota(
 		throw formatCoreError(err);
 	}
 }
+
+const desktopConversationsSchema = z.object({
+	sessions: z.array(
+		z.object({
+			id: z.string(),
+			title: z.string(),
+			origin: z.string(),
+			available: z.boolean(),
+			reason: z.string().nullable(),
+		}),
+	),
+	unavailableOrigins: z.array(z.string()),
+});
+
+const conversationResultsSchema = z.array(
+	z.object({
+		id: z.string(),
+		status: z.enum(["imported", "skipped", "unavailable"]),
+		reason: z.string().nullable(),
+	}),
+);
+
+export type DesktopConversationList = z.infer<
+	typeof desktopConversationsSchema
+>;
+export type DesktopConversationResult = z.infer<
+	typeof conversationResultsSchema
+>[number];
+
+export async function listClaudeDesktopConversations(
+	sourceProfileId: string,
+	destinationProfileId: string,
+): Promise<DesktopConversationList> {
+	try {
+		return desktopConversationsSchema.parse(
+			await commands.listClaudeDesktopConversations(
+				sourceProfileId,
+				destinationProfileId,
+			),
+		);
+	} catch (err) {
+		throw formatCoreError(err);
+	}
+}
+
+export async function importClaudeDesktopConversations(
+	sourceProfileId: string,
+	destinationProfileId: string,
+	sessionIds: string[],
+): Promise<DesktopConversationResult[]> {
+	try {
+		return conversationResultsSchema.parse(
+			await commands.importClaudeDesktopConversations(
+				sourceProfileId,
+				destinationProfileId,
+				sessionIds,
+			),
+		);
+	} catch (err) {
+		throw formatCoreError(err);
+	}
+}

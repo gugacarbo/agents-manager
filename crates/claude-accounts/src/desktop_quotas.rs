@@ -327,6 +327,22 @@ impl DesktopQuotaProfiles {
             Err(DesktopQuotaError::Unauthenticated)
         }
     }
+    /// Account identity persisted for a linked profile, so callers can bind data to it.
+    pub fn linked_identity(&self, id: &str) -> Result<DesktopAccountIdentity, DesktopQuotaError> {
+        let stored = self.service(id)?.load()?;
+        let identity = stored
+            .identity
+            .filter(|value| !value.trim().is_empty())
+            .ok_or(DesktopQuotaError::Unauthenticated)?;
+        Ok(DesktopAccountIdentity {
+            display_name: stored
+                .state
+                .account
+                .map(|account| account.display_name)
+                .unwrap_or_else(|| identity.clone()),
+            id: identity,
+        })
+    }
     fn service(&self, id: &str) -> Result<DesktopQuotaService, DesktopQuotaError> {
         Ok(DesktopQuotaService::new(
             self.dir_for(id)?,
@@ -470,5 +486,94 @@ impl DesktopQuotaProfiles {
             }
         }
         service.refresh()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used)]
+
+    use super::*;
+
+    struct Source;
+    impl DesktopQuotaSource for Source {
+        fn open(&self) -> Result<Box<dyn DesktopQuotaSession + '_>, DesktopQuotaError> {
+            Ok(Box::new(Session))
+        }
+    }
+    struct Session;
+    impl DesktopQuotaSession for Session {
+        fn identity(&self) -> Result<DesktopAccountIdentity, DesktopQuotaError> {
+            Ok(DesktopAccountIdentity {
+                id: "acct-1".into(),
+                display_name: "Alice".into(),
+            })
+        }
+        fn usage(&self) -> Result<DesktopQuotaWindows, DesktopQuotaError> {
+            Ok(DesktopQuotaWindows {
+                five_hour: None,
+                seven_day: None,
+            })
+        }
+    }
+
+    fn profiles() -> DesktopQuotaProfiles {
+        DesktopQuotaProfiles::new(
+            tempfile::tempdir().unwrap().keep(),
+            Arc::new(|_: &str| Arc::new(Source)),
+            Arc::new(|| 1_000_000),
+        )
+    }
+
+    #[test]
+    fn linked_identity_returns_the_persisted_identity_of_a_linked_profile() {
+        let profiles = profiles();
+        let draft = profiles.create().unwrap();
+        profiles.link(&draft.id).unwrap();
+
+        let identity = profiles.linked_identity(&draft.id).unwrap();
+        assert_eq!(identity.id, "acct-1");
+        assert_eq!(identity.display_name, "Alice");
+    }
+
+    #[test]
+    fn linked_identity_is_unauthenticated_for_a_profile_without_identity() {
+        let profiles = profiles();
+        let draft = profiles.create().unwrap();
+
+        assert!(matches!(
+            profiles.linked_identity(&draft.id),
+            Err(DesktopQuotaError::Unauthenticated)
+        ));
+        // Default slot with no state yet behaves the same.
+        assert!(matches!(
+            profiles.linked_identity("default"),
+            Err(DesktopQuotaError::Unauthenticated)
+        ));
+        // A blank identity on disk is treated as absent.
+        let dir = profiles.profile_dir(&draft.id).unwrap();
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join("state.json"),
+            r#"{"identity":"   ","state":{"account":null,"last_attempt_at":null,"last_success":null,"error":null},"last_attempt_epoch_ms":null}"#,
+        )
+        .unwrap();
+        assert!(matches!(
+            profiles.linked_identity(&draft.id),
+            Err(DesktopQuotaError::Unauthenticated)
+        ));
+    }
+
+    #[test]
+    fn linked_identity_reports_a_missing_profile_without_panicking() {
+        let profiles = profiles();
+        assert!(matches!(
+            profiles.linked_identity("p-doesnotexist"),
+            Err(DesktopQuotaError::ProfileNotFound)
+        ));
+        assert!(matches!(
+            profiles.linked_identity("../state"),
+            Err(DesktopQuotaError::ProfileNotFound)
+        ));
     }
 }

@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ClaudeDesktopConversationImport } from "./ClaudeDesktopConversationImport";
 import { DesktopQuotaProfileView } from "./DesktopQuotaProfileView";
 import { useClaudeDesktopQuotas } from "./use-claude-desktop-quotas";
 
@@ -79,6 +80,11 @@ export function ClaudeAccountQuotas() {
 							action={action}
 						/>
 					))}
+				<ClaudeDesktopConversationImport
+					profiles={profiles}
+					switching={switching}
+					onSwitch={(profile) => action(profile, "switch")}
+				/>
 			</CardContent>
 		</Card>
 	);

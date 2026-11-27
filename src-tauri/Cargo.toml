@@ -21,6 +21,7 @@ agents-manager-remote = { version = "0.1.0", path = "../crates/remote" }
 directories = "6"
 notify = "8"
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 specta = { version = "=2.0.0-rc.28", features = ["derive", "function"] }
 specta-typescript = "0.0.15"
 tauri = { version = "2", features = ["tray-icon", "image-png"] }

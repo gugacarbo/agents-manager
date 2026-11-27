@@ -146,6 +146,14 @@ impl SshTransport {
         }
     }
     fn run(&self, draft: &SshEnvironmentDraft, config_only: bool) -> Result<String, CoreError> {
+        self.run_with_destination(draft, config_only, None)
+    }
+    fn run_with_destination(
+        &self,
+        draft: &SshEnvironmentDraft,
+        config_only: bool,
+        destination: Option<(&str, Option<&str>)>,
+    ) -> Result<String, CoreError> {
         validate(draft)?;
         let mut command = Command::new(&self.program);
         #[cfg(unix)]
@@ -179,17 +187,24 @@ impl SshTransport {
                 "ConnectTimeout=10",
             ]);
         }
-        match &draft.connection {
-            SshConnection::Alias { alias } => {
-                command.arg(alias);
+        if let Some((host, user)) = destination {
+            if let Some(user) = user {
+                command.arg("-l").arg(user);
             }
-            SshConnection::Manual { host, user, port } => {
-                command
-                    .arg("-l")
-                    .arg(user)
-                    .arg("-p")
-                    .arg(port.to_string())
-                    .arg(host);
+            command.arg(host);
+        } else {
+            match &draft.connection {
+                SshConnection::Alias { alias } => {
+                    command.arg(alias);
+                }
+                SshConnection::Manual { host, user, port } => {
+                    command
+                        .arg("-l")
+                        .arg(user)
+                        .arg("-p")
+                        .arg(port.to_string())
+                        .arg(host);
+                }
             }
         }
         if !config_only {
@@ -315,6 +330,79 @@ printf 'AM_SSH_END_V1\n'"#,
             .and_then(|port| port.parse::<u16>().ok())
             .filter(|port| *port > 0)
             .ok_or_else(|| error(SshErrorKind::Protocol, "Could not resolve the SSH port."))
+    }
+    /// Returns OpenSSH's resolved direct route for this saved environment.
+    pub fn conversation_route(
+        &self,
+        draft: &SshEnvironmentDraft,
+    ) -> Result<(String, String, u16), CoreError> {
+        self.parse_conversation_route(&self.run(draft, true)?)
+    }
+    /// Resolves a host reference from a Claude session without overriding OpenSSH's configured port.
+    pub fn conversation_reference_route(
+        &self,
+        ssh_host: &str,
+        user: Option<&str>,
+    ) -> Result<(String, String, u16), CoreError> {
+        let (host, embedded_user) = match ssh_host.split_once('@') {
+            Some((embedded, host)) if !host.contains('@') => (host, Some(embedded)),
+            Some(_) => {
+                return Err(error(
+                    SshErrorKind::InvalidInput,
+                    "Invalid SSH session host.",
+                ));
+            }
+            None => (ssh_host, None),
+        };
+        let resolved_user = match (embedded_user, user) {
+            (Some(embedded), Some(user)) if embedded != user => {
+                return Err(error(
+                    SshErrorKind::InvalidInput,
+                    "Conflicting SSH session users.",
+                ));
+            }
+            (Some(embedded), _) => Some(embedded),
+            (None, user) => user,
+        };
+        if !valid(host, true) || resolved_user.is_some_and(|value| !valid(value, false)) {
+            return Err(error(
+                SshErrorKind::InvalidInput,
+                "Invalid SSH session route.",
+            ));
+        }
+        let draft = SshEnvironmentDraft {
+            name: "session reference".into(),
+            connection: SshConnection::Alias { alias: host.into() },
+        };
+        let output = self.run_with_destination(&draft, true, Some((host, resolved_user)))?;
+        self.parse_conversation_route(&output)
+    }
+    fn parse_conversation_route(&self, resolved: &str) -> Result<(String, String, u16), CoreError> {
+        if resolved.lines().any(|line| {
+            line.strip_prefix("proxycommand ")
+                .or_else(|| line.strip_prefix("proxyjump "))
+                .is_some_and(|value| !value.eq_ignore_ascii_case("none"))
+        }) {
+            return Err(error(
+                SshErrorKind::Protocol,
+                "Session discovery requires a directly authenticated SSH connection.",
+            ));
+        }
+        let field = |name: &str| {
+            resolved
+                .lines()
+                .find_map(|line| line.strip_prefix(name))
+                .filter(|value| !value.is_empty())
+        };
+        let host = field("hostname ")
+            .ok_or_else(|| error(SshErrorKind::Protocol, "Could not resolve the SSH host."))?;
+        let user = field("user ")
+            .ok_or_else(|| error(SshErrorKind::Protocol, "Could not resolve the SSH user."))?;
+        let port = field("port ")
+            .and_then(|value| value.parse::<u16>().ok())
+            .filter(|port| *port > 0)
+            .ok_or_else(|| error(SshErrorKind::Protocol, "Could not resolve the SSH port."))?;
+        Ok((host.into(), user.into(), port))
     }
     pub(crate) fn remote_command(
         &self,

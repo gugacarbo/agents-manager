@@ -118,7 +118,7 @@ impl Drop for LoginCallback {
     }
 }
 
-fn login_lock_at(path: &Path) -> Result<File, DesktopQuotaError> {
+pub(crate) fn login_lock_at(path: &Path) -> Result<File, DesktopQuotaError> {
     let lock = OpenOptions::new()
         .write(true)
         .create(true)

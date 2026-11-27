@@ -2,6 +2,8 @@ mod agents;
 #[cfg(target_os = "linux")]
 pub mod claude_accounts;
 #[cfg(target_os = "linux")]
+pub mod claude_desktop_conversations;
+#[cfg(target_os = "linux")]
 pub mod claude_desktop_quotas;
 mod configs;
 mod library;

@@ -1,5 +1,6 @@
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used)]
     use super::*;
 
     #[test]
@@ -48,6 +49,150 @@ mod tests {
         ));
         assert!(parse_usage(b"not-json").is_err());
         assert!(parse_usage(br#"{"seven_day":{"resets_at":"invalid-date"}}"#).is_err());
+    }
+
+    fn override_from(dir: &Path, contents: &str) -> Option<String> {
+        fs::create_dir_all(dir).unwrap();
+        fs::write(dir.join("ccd-environment-config.json"), contents).unwrap();
+        conversation_cli_config_override(dir).unwrap()
+    }
+
+    #[test]
+    fn cli_config_override_reads_the_map_shape() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(
+            override_from(dir.path(), r#"{"CLAUDE_CONFIG_DIR":"/x/y"}"#).as_deref(),
+            Some("/x/y")
+        );
+    }
+
+    #[test]
+    fn cli_config_override_reads_the_list_shape_with_name_or_key() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(
+            override_from(
+                dir.path(),
+                r#"[{"name":"HOME","value":"/home/u"},{"name":"CLAUDE_CONFIG_DIR","value":"/x/y"}]"#,
+            )
+            .as_deref(),
+            Some("/x/y")
+        );
+        assert_eq!(
+            override_from(
+                dir.path(),
+                r#"[{"key":"CLAUDE_CONFIG_DIR","value":"/x/z"}]"#,
+            )
+            .as_deref(),
+            Some("/x/z")
+        );
+    }
+
+    #[test]
+    fn cli_config_override_finds_the_variable_nested_in_objects() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(
+            override_from(
+                dir.path(),
+                r#"{"env":{"session":{"vars":{"CLAUDE_CONFIG_DIR":"/x/nested"}}}}"#,
+            )
+            .as_deref(),
+            Some("/x/nested")
+        );
+    }
+
+    /// Contract: a `name: CLAUDE_CONFIG_DIR` field in a non-variable context is only honoured
+    /// when its value is an absolute path without `.`/`..` components. Anything else (relative,
+    /// empty, parent traversal) yields `None`, so the caller can never be pointed at an invalid
+    /// directory by unrelated JSON that happens to reuse the field name.
+    #[test]
+    fn cli_config_override_rejects_adversarial_named_entries_with_unusable_values() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(
+            override_from(
+                dir.path(),
+                r#"{"label":{"name":"CLAUDE_CONFIG_DIR","value":"not-a-path"}}"#,
+            ),
+            None
+        );
+        assert_eq!(
+            override_from(
+                dir.path(),
+                r#"{"label":{"name":"CLAUDE_CONFIG_DIR","value":"/x/../etc"}}"#,
+            ),
+            None
+        );
+        assert_eq!(
+            override_from(
+                dir.path(),
+                r#"{"label":{"name":"CLAUDE_CONFIG_DIR","value":""}}"#,
+            ),
+            None
+        );
+        // Map shape is held to the same rule.
+        assert_eq!(
+            override_from(dir.path(), r#"{"CLAUDE_CONFIG_DIR":"relative/dir"}"#),
+            None
+        );
+        // A rejected entry does not shadow a valid sibling.
+        assert_eq!(
+            override_from(
+                dir.path(),
+                r#"{"label":{"name":"CLAUDE_CONFIG_DIR","value":"not-a-path"},"env":{"CLAUDE_CONFIG_DIR":"/x/y"}}"#,
+            )
+            .as_deref(),
+            Some("/x/y")
+        );
+    }
+
+    #[test]
+    fn cli_config_override_is_none_when_the_variable_or_file_is_absent() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(conversation_cli_config_override(dir.path()).unwrap(), None);
+        assert_eq!(
+            override_from(
+                dir.path(),
+                r#"{"HOME":"/home/u","env":{"PATH":"/usr/bin"}}"#
+            )
+            .as_deref(),
+            None
+        );
+    }
+
+    #[test]
+    fn cli_config_override_reports_unreadable_or_incompatible_files() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::create_dir_all(dir.path()).unwrap();
+        let path = dir.path().join("ccd-environment-config.json");
+        // Not JSON: incompatible, never a partial guess.
+        fs::write(&path, "not-json").unwrap();
+        assert_eq!(
+            conversation_cli_config_override(dir.path()),
+            Err(DesktopQuotaError::SourceIncompatible)
+        );
+        // A directory where the file should be: incompatible.
+        fs::remove_file(&path).unwrap();
+        fs::create_dir(&path).unwrap();
+        assert_eq!(
+            conversation_cli_config_override(dir.path()),
+            Err(DesktopQuotaError::SourceIncompatible)
+        );
+        // Unreadable because the containing directory denies access: unavailable. Skipped when
+        // the suite runs with privileges that bypass mode bits (e.g. root in CI containers).
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = fs::remove_dir(&path);
+            fs::write(&path, "{}").unwrap();
+            fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o000)).unwrap();
+            let result = conversation_cli_config_override(dir.path());
+            let _ = fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o700));
+            let expected = if nix::unistd::Uid::current().is_root() {
+                Ok(None)
+            } else {
+                Err(DesktopQuotaError::SourceUnavailable)
+            };
+            assert_eq!(result, expected);
+        }
     }
 }
 
@@ -162,6 +307,83 @@ pub fn ensure_closed() -> Result<(), DesktopQuotaError> {
         }
     }
     Ok(())
+}
+
+/// `CLAUDE_CONFIG_DIR` the Desktop saved in this profile's environment
+/// (`ccd-environment-config.json`), which the Desktop honours before the process environment.
+/// Returns `None` when the file or the variable is absent.
+pub fn conversation_cli_config_override(
+    config_dir: &Path,
+) -> Result<Option<String>, DesktopQuotaError> {
+    const MAX_BYTES: usize = 1024 * 1024;
+    let path = config_dir.join("ccd-environment-config.json");
+    let metadata = match fs::symlink_metadata(&path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(_) => return Err(DesktopQuotaError::SourceUnavailable),
+    };
+    if !metadata.is_file() || metadata.file_type().is_symlink() || metadata.len() > MAX_BYTES as u64
+    {
+        return Err(DesktopQuotaError::SourceIncompatible);
+    }
+    let mut bytes = Vec::new();
+    fs::File::open(&path)
+        .map_err(|_| DesktopQuotaError::SourceUnavailable)?
+        .take(MAX_BYTES as u64 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|_| DesktopQuotaError::SourceUnavailable)?;
+    let value: serde_json::Value =
+        serde_json::from_slice(&bytes).map_err(|_| DesktopQuotaError::SourceIncompatible)?;
+    // Accepted shapes: a name → value map, or a list of `{name|key, value}` entries, possibly
+    // nested under any object (the exact layout is not documented by the Desktop). A matched
+    // value is only trusted when it is an absolute path without `.`/`..` components: an object
+    // that merely carries a `name: CLAUDE_CONFIG_DIR` field (a label, not an environment
+    // variable) must never yield a directory.
+    fn find(value: &serde_json::Value) -> Option<String> {
+        fn usable(found: &str) -> Option<String> {
+            let path = Path::new(found);
+            (path.is_absolute()
+                && !path.components().any(|part| {
+                    matches!(
+                        part,
+                        std::path::Component::ParentDir | std::path::Component::CurDir
+                    )
+                }))
+            .then(|| found.to_owned())
+        }
+        match value {
+            serde_json::Value::Object(map) => {
+                if let Some(found) = map
+                    .get("CLAUDE_CONFIG_DIR")
+                    .and_then(serde_json::Value::as_str)
+                    .and_then(usable)
+                {
+                    return Some(found);
+                }
+                let named = map
+                    .get("name")
+                    .or_else(|| map.get("key"))
+                    .and_then(serde_json::Value::as_str)
+                    .is_some_and(|name| name == "CLAUDE_CONFIG_DIR");
+                if named {
+                    if let Some(found) = map
+                        .get("value")
+                        .and_then(serde_json::Value::as_str)
+                        .and_then(usable)
+                    {
+                        return Some(found);
+                    }
+                    // A named entry with an unusable value is a spent match: do not descend into
+                    // it, as its fields describe this variable and nothing else.
+                    return None;
+                }
+                map.values().find_map(find)
+            }
+            serde_json::Value::Array(items) => items.iter().find_map(find),
+            _ => None,
+        }
+    }
+    Ok(find(&value))
 }
 fn decrypt_cache(cache: &str) -> Result<Vec<u8>, DesktopQuotaError> {
     let bytes = STANDARD

@@ -11,7 +11,7 @@ pub(crate) fn private_store() -> Result<PathBuf, agents_manager_core::error::Cor
     Ok(super::data_dir()?.join("claude-desktop-quotas"))
 }
 
-fn service() -> Result<&'static DesktopQuotaProfiles, DesktopQuotaError> {
+pub(super) fn service() -> Result<&'static DesktopQuotaProfiles, DesktopQuotaError> {
     static SERVICE: OnceLock<DesktopQuotaProfiles> = OnceLock::new();
     if let Some(service) = SERVICE.get() {
         return Ok(service);

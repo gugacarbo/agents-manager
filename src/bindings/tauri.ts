@@ -39,6 +39,8 @@ export const commands = {
 	getAppPreferences: (options?: InvokeOptions) => __TAURI_INVOKE<AppPreferences_Serialize>("get_app_preferences", undefined, options),
 	/**  Persists desktop preferences and updates the in-memory tray state immediately. */
 	setAppPreferences: (preferences: AppPreferences_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<AppPreferences_Serialize>("set_app_preferences", { preferences }, options),
+	listClaudeDesktopConversations: (sourceProfileId: string, destinationProfileId: string, options?: InvokeOptions) => __TAURI_INVOKE<DesktopConversationList_Serialize>("list_claude_desktop_conversations", { sourceProfileId, destinationProfileId }, options),
+	importClaudeDesktopConversations: (sourceProfileId: string, destinationProfileId: string, sessionIds: string[], options?: InvokeOptions) => __TAURI_INVOKE<DesktopConversationResult_Serialize[]>("import_claude_desktop_conversations", { sourceProfileId, destinationProfileId, sessionIds }, options),
 	listClaudeDesktopQuotaProfiles: (options?: InvokeOptions) => __TAURI_INVOKE<DesktopQuotaProfile_Serialize[]>("list_claude_desktop_quota_profiles", undefined, options),
 	createClaudeDesktopQuotaProfile: (options?: InvokeOptions) => __TAURI_INVOKE<DesktopQuotaProfile_Serialize>("create_claude_desktop_quota_profile", undefined, options),
 	openClaudeDesktopQuotaLogin: (profileId: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("open_claude_desktop_quota_login", { profileId }, options),
@@ -163,6 +165,52 @@ export type CoreError = "RemoteDestinationChanged" | "RemoteUnconfirmed" | "Prot
 ({ NotFound: {
 	target: string,
 } }) & { DuplicateProject?: never; InvalidPath?: never; IoError?: never; PathNotAllowed?: never; PermissionDenied?: never; Serialization?: never; SshError?: never; SyntaxError?: never };
+
+export type DesktopConversationList = DesktopConversationList_Serialize | DesktopConversationList_Deserialize;
+
+export type DesktopConversationList_Deserialize = {
+	sessions: DesktopConversationSession_Deserialize[],
+	unavailableOrigins: string[],
+};
+
+export type DesktopConversationList_Serialize = {
+	sessions: DesktopConversationSession_Serialize[],
+	unavailableOrigins: string[],
+};
+
+export type DesktopConversationResult = DesktopConversationResult_Serialize | DesktopConversationResult_Deserialize;
+
+export type DesktopConversationResult_Deserialize = {
+	id: string,
+	status: DesktopConversationStatus,
+	reason?: string | null,
+};
+
+export type DesktopConversationResult_Serialize = {
+	id: string,
+	status: DesktopConversationStatus,
+	reason: string | null,
+};
+
+export type DesktopConversationSession = DesktopConversationSession_Serialize | DesktopConversationSession_Deserialize;
+
+export type DesktopConversationSession_Deserialize = {
+	id: string,
+	title: string,
+	origin: string,
+	available: boolean,
+	reason?: string | null,
+};
+
+export type DesktopConversationSession_Serialize = {
+	id: string,
+	title: string,
+	origin: string,
+	available: boolean,
+	reason: string | null,
+};
+
+export type DesktopConversationStatus = "imported" | "skipped" | "unavailable";
 
 export type DesktopQuotaAccount = {
 	display_name: string,
