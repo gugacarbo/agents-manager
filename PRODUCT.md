@@ -8,14 +8,10 @@ web
 
 ## Users
 
-The documented v1 operating intent is personal use, Linux-first.
-
-**Documentary inference — user confirmation pending:** The primary user is a developer who uses one
-or more of Claude Code, Codex, and Antigravity and needs to locate and understand their scattered
-local configuration. Their current job is to see which supported agents are present and where their
-configuration directories live. Their broader proposed job is to manage selected MCPs, Skills,
-Rules, and Settings across global and project scopes without manually duplicating them; this broader
-workflow is not implemented.
+The initial audience is developers using Claude Code, Codex, or Antigravity for personal work on
+Linux. The app currently helps them see which supported agents are present and where their local
+configuration lives. Editing native configuration in place and sharing selected configuration
+through an optional library are confirmed directions for future work, not available workflows.
 
 No additional audience, team use case, or customer segment has been confirmed.
 
@@ -24,26 +20,19 @@ No additional audience, team use case, or customer segment has been confirmed.
 The current product detects supported local AI coding agents and presents their detection status and
 configuration paths, including loading and error states.
 
-**Documentary inference — user confirmation pending:** Agents Manager is intended to become a single
-local control point for inspecting, editing, and selectively sharing AI agent configuration while
-preserving each agent's native files and formats. This purpose is derived from `AGENTS.md` and
-proposed ADRs; only agent detection and inventory are currently connected to the backend.
+The confirmed direction is to give developers one local place to inspect and edit agent
+configuration in its native files and selectively share it without requiring migration. Only agent
+detection and inventory are currently connected to the backend.
 
-**Open decision — no user response:** Success criteria are undefined. No adoption target,
-task-completion measure, reliability threshold, performance benchmark, or release criterion has been
-established. Repository validation commands are engineering checks, not evidence of product success.
+**Open decision:** Product success criteria and release criteria have not been defined. Repository
+validation commands are engineering checks, not evidence of product success.
 
 ## Positioning
 
-**Documentary inference — user confirmation pending:** The proposed position is a local-first
-manager that works with existing Claude Code, Codex, and Antigravity configuration in place, with an
-optional shared library for deliberate reuse rather than mandatory migration. The proposed
-distinction is the combination of native global/project files, explicit synchronization, and
-agent-specific adapters.
-
-This is proposed product direction, not a verified competitive claim or a description of shipped
-editing and synchronization capabilities. No competitor research or positioning validation is on
-hand.
+Agents Manager is a local-first tool for people who already have Claude Code, Codex, or Antigravity
+set up. The intended workflow keeps existing configuration in place and makes a shared library
+optional. This is product direction, not a claim that editing or synchronization has shipped or that
+alternatives lack these features.
 
 ## Operating Context
 
@@ -97,8 +86,9 @@ hand.
   alone does not settle distribution.
 - **Language — no user response:** Current UI copy is English, but the required product language or
   languages and any localization requirements are undecided.
-- **Scope confirmation — no user response:** The proposed editing, sharing, safety, and backup
-  workflows require user confirmation before being treated as committed product scope.
+- **Delivery scope:** Editing native files in place and optional sharing are confirmed as future
+  directions. Their release timing and detailed synchronization, safety, and backup requirements
+  remain undecided.
 
 ## Brand Commitments
 
@@ -121,16 +111,17 @@ brand direction has been confirmed by the user.
 - `src/App.test.tsx` and `tests/e2e/app.spec.ts`: schema, rendering, error, and role-based UI test
   coverage.
 
-There is no user interview response, customer evidence, usage data, benchmark result, usability
-study, or validated product metric on hand. Future work must not invent them.
+The user confirmed the personal Linux-first audience and the product direction of local inventory,
+future native-file editing, and optional sharing. No customer evidence, usage data, benchmark
+result, usability study, or validated product metric is on hand.
 
 ## Product Principles
 
-All principles below are **documentary inferences — user confirmation pending**. They describe
-proposed strategic direction, not implemented guarantees.
+The first principle reflects confirmed product direction. The remaining principles are proposals
+from repository documentation, not confirmed requirements or implemented guarantees.
 
-1. **Meet the existing setup where it is.** Prefer working with native configuration over forced
-   migration; make any shared-library adoption optional and incremental.
+1. **Meet the existing setup where it is.** Work with native configuration files instead of
+   requiring migration, and keep the shared library optional.
 2. **Make consequential changes explicit.** Proposed writes and synchronization should require
    reviewable diffs, surface external conflicts, and provide recovery through backups before
    claiming safety.
