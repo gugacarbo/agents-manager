@@ -6,3 +6,7 @@ src-tauri/target/
 coverage/
 playwright-report/
 test-results/
+docs/adr/README.md
+docs/specs/README.md
+docs/index.json
+docs/BACKLOG.md

@@ -1,0 +1,63 @@
+[
+  {
+    "id": "ADR-0001",
+    "path": "docs/adr/0001-tauri-v2-rust-workspace-and-specta-ipc.md",
+    "layer": "adr",
+    "title": "Adotar Tauri v2, Cargo Workspace em Rust e IPC tipado com tauri-specta",
+    "status": "proposed",
+    "builds-on": [],
+    "superseded-by": null,
+    "implemented-by": []
+  },
+  {
+    "id": "ADR-0002",
+    "path": "docs/adr/0002-hybrid-in-place-and-shared-library-model.md",
+    "layer": "adr",
+    "title": "Adotar modelo híbrido de edição in-place e biblioteca compartilhada opcional",
+    "status": "proposed",
+    "builds-on": [
+      "ADR-0001"
+    ],
+    "superseded-by": null,
+    "implemented-by": []
+  },
+  {
+    "id": "ADR-0003",
+    "path": "docs/adr/0003-extensible-agent-adapter-architecture.md",
+    "layer": "adr",
+    "title": "Adotar arquitetura de adapters extensíveis com paths injetáveis",
+    "status": "proposed",
+    "builds-on": [
+      "ADR-0001",
+      "ADR-0002"
+    ],
+    "superseded-by": null,
+    "implemented-by": []
+  },
+  {
+    "id": "ADR-0004",
+    "path": "docs/adr/0004-safe-surgical-writes-conflict-detection-and-secrets.md",
+    "layer": "adr",
+    "title": "Exigir escrita cirúrgica, detecção de conflitos externos e mascaramento de segredos",
+    "status": "proposed",
+    "builds-on": [
+      "ADR-0001",
+      "ADR-0002"
+    ],
+    "superseded-by": null,
+    "implemented-by": []
+  },
+  {
+    "id": "ADR-0005",
+    "path": "docs/adr/0005-xdg-file-storage-library-layout-and-backup-retention.md",
+    "layer": "adr",
+    "title": "Persistir estado, biblioteca compartilhada e backups rotacionados em arquivos XDG",
+    "status": "proposed",
+    "builds-on": [
+      "ADR-0002",
+      "ADR-0004"
+    ],
+    "superseded-by": null,
+    "implemented-by": []
+  }
+]

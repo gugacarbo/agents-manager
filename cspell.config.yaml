@@ -9,6 +9,10 @@ ignorePaths:
   - src-tauri/gen/**
   - src/bindings/**
   - docs/templates/**
+  - docs/adr/README.md
+  - docs/specs/README.md
+  - docs/index.json
+  - docs/BACKLOG.md
   - .agents/**
   - .claude/**
   - scripts/**
@@ -21,8 +25,14 @@ ignorePaths:
 words:
   - claude
   - dtolnay
+  - egui
   - gemini
   - github
+  - gpui
+  - gugacarbo
+  - serde
+  - serialização
+  - slint
   - swatinem
   - taiki
   - tauri
