@@ -1,0 +1,27 @@
+[package]
+name = "agents-manager"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+name = "agents_manager_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+agents-manager-adapters = { path = "../crates/adapters" }
+agents-manager-core = { path = "../crates/core" }
+directories = "6"
+specta = { version = "=2.0.0-rc.28", features = ["derive", "function"] }
+specta-typescript = "0.0.15"
+tauri = { version = "2", features = [] }
+tauri-specta = { version = "2.0.0-rc.29", features = ["typescript"] }
+
+[dev-dependencies]
+tempfile = "3"

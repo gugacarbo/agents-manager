@@ -1,0 +1,31 @@
+# Dependencies & packages
+node_modules/
+.pnp
+.pnp.js
+
+# Build artifacts
+dist/
+build/
+target/
+src-tauri/target/
+
+# Testing & coverage
+coverage/
+.vitest-coverage*
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
+# Environment
+.env*
+!.env.example
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json

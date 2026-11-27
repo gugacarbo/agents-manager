@@ -1,0 +1,786 @@
+#!/usr/bin/env python3
+"""
+docs-check — reference validator for the CASA Standard (STANDARD.md §8).
+
+Usage:
+  scripts/docs-check [--root .] [--emit-index] [--warn-only]
+  scripts/docs-check --check-adr-immutability --base-ref origin/main
+  scripts/docs-check --staged          # pre-commit: validates the git index
+
+What it checks:
+  1. Validates the AGENTS.md router: CASA metadata, global DoD, context pointers (backticked
+     or Markdown link targets), and RECOGNIZED chapter invariants (declared TESTS.md requires
+     at least one canonical command — §4/§8). HTML comments never count; placeholders in the
+     global DoD or TESTS.md and legacy sample DoD blocks emit WARNINGs.
+     Flags (WARNING) casa-version drift against the installed toolchain (ADR-0010) and
+     misplaced backlogs under docs/context/ (ADR-0011).
+  2. Reads docs/adr/*.md and docs/specs/*.md.
+  3. DERIVES id from filename (docs/adr/0032-x.md → ADR-0032) and title from the first
+     body H1 (after frontmatter; HTML comments ignored).
+  4. Validates frontmatter: only the supported YAML subset (scalar, inline list, block
+     list) — unrecognized lines and duplicate keys are ERRORs; required fields (status,
+     date), real YYYY-MM-DD calendar date, per-layer status vocabulary; unknown fields
+     emit WARNINGs.
+  5. Validates the causal graph: builds-on/superseded-by resolve (cross-repo emits WARNING);
+     no self-supersession; superseded-by only on ADRs; superseded ADRs require a real top
+     "CURRENT TRUTH" (or legacy "VERDADE ATUAL") callout outside HTML comments.
+  6. Validates Specs: accepted/implemented require an executable DoD without placeholders and
+     zero unchecked open questions; implemented requires implemented-by resolving to real
+     paths and a populated "## Verification" (or "## Verificação") section.
+  7. Optionally enforces accepted-ADR immutability against the merge-base with --base-ref:
+     untouched body (only frontmatter and the top CURRENT TRUTH / VERDADE ATUAL block up to
+     3 lines), no deletion, rename-proof comparison by ADR number, non-regressing status.
+  8. Tree hygiene: ".orig", "conflicted copy", and ".DS_Store" always; numbered sync copies
+     ("x 2.md", "x copy.md", "x (1).md") when the original sits alongside them. In a git
+     repo, inspects tracked + non-ignored untracked files; outside git, walks disk skipping
+     .git, node_modules, dist, etc. --staged validates the git INDEX (what will be committed)
+     rather than the working tree.
+  9. Index freshness: compares generated READMEs (and docs/index.json, if present) against
+     committed copies and FAILS on drift. --emit-index regenerates all indices.
+
+Bilingual compatibility (CASA 1.11, ADR-0019): structural headings and placeholders are
+accepted in both canonical English and legacy Brazilian Portuguese (CASA 1.0–1.10).
+
+Exit: 1 on any ERROR (default). --warn-only prints everything and exits 0 —
+strictly for the adoption window (STANDARD §10).
+
+Zero external dependencies.
+"""
+import argparse, json, os, posixpath, re, shutil, subprocess, sys, tempfile
+from datetime import datetime
+from pathlib import Path
+
+LAYERS = {"adr": "ADR", "specs": "SPEC"}
+STATUS_VOCAB = {
+    "adr":   {"proposed", "accepted", "deprecated", "superseded"},
+    "specs": {"draft", "accepted", "implemented", "deprecated"},
+}
+REQUIRED = {"status", "date"}
+KNOWN_KEYS = {"status", "date", "builds-on", "superseded-by", "implemented-by", "deciders",
+              "design-ref"}  # design-ref: NON-normative UI design reference (ADR-0014)
+ROUTER_REQUIRED = {"casa-repo-id", "casa-tier", "casa-version", "casa-standard-ref"}
+ROUTER_TIERS = {"T0", "T1"}
+# CASA contract version implemented by THIS toolchain (ADR-0010). Must match CASA_VERSION
+# in casa-init from the same snapshot — test-casa-init enforces synchronization.
+CONTRACT_VERSION = "1.11"
+# RECOGNIZED context chapters (CLOSED registry — STANDARD §4/§8): declaring the pointer in
+# the router triggers a CONTENT invariant owned here by the validator. Triggered strictly by
+# DECLARATION in the router, never by physical presence on disk; adopters never bring custom
+# rules. Extending this set requires an ADR in casa-standard (ADR-0008).
+RECOGNIZED_CHAPTERS = {
+    "docs/context/TESTS.md": "TESTS",   # requires at least one canonical test command
+}
+IGNORED_DIRS = {".git", "node_modules", ".venv", "venv", "dist", "build",
+                "vendor", "__pycache__", ".next", "target", ".tox",
+                ".mypy_cache", ".pytest_cache", ".ruff_cache"}
+TRASH_ALWAYS = [r"\.orig$", r"conflicted copy", r"^\.DS_Store$"]
+DUP_RE = re.compile(r"^(?P<base>.+?)(?: \d+| copy(?: \d+)?| \(\d+\))(?P<ext>\.\w+)$")
+FILENAME_RE = re.compile(r"^(\d{4})-[a-z0-9][a-z0-9-]*\.md$")
+KEY_RE = re.compile(r"^([A-Za-z][\w-]*):\s*(.*)$")
+ITEM_RE = re.compile(r"^\s*-\s+(.*)$")
+# Canonical EN ("CURRENT TRUTH") + legacy PT-BR ("VERDADE ATUAL") callout marker (ADR-0019).
+VA_RE = re.compile(r"^\s*>\s*(?:⚠️?\s*)?(?:CURRENT TRUTH|VERDADE ATUAL)", re.M)
+VA_MAX_LINES = 3  # STANDARD §5.1: max 3 lines at the top of the ADR
+# ADR statuses whose body is immutable, and allowed forward transitions (status never
+# regresses: accepted → proposed would reopen the body for editing in a subsequent PR).
+IMMUTABLE_NEXT = {"accepted": {"accepted", "deprecated", "superseded"},
+                  "deprecated": {"deprecated", "superseded"},
+                  "superseded": {"superseded"}}
+ROUTER_LINE_CAP = 150
+ROUTER_DOD_HEADINGS = (
+    "How to validate (global repo DoD)",
+    "Como validar (DoD global do repo)",
+)
+SPEC_OPEN_QUESTIONS_HEADINGS = ("Open questions", "Questões em aberto")
+SPEC_VERIFICATION_HEADINGS = ("Verification", "Verificação")
+VERIFICATION_PLACEHOLDERS = ("(fill in on close)", "(preencher no fechamento)")
+PLACEHOLDER_RE = re.compile(
+    # Template <token> starts with a letter and does not end in whitespace; avoids false
+    # positives on shell redirections (2>&1, cmd < file, <in >out, <<EOF).
+    r"<[A-Za-z](?:[^>\n]*[^\s>])?>"
+    r"|YYYY-MM-DD|AAAA-MM-DD"
+    r"|\(fill in|fill in on close|\(preencher|preencher no fechamento"
+    r"|N/N green|N/N verdes"
+    r"|exact, copyable commands|comandos exatos",
+    re.I,
+)
+# Quoted/backticked spans are literals: in shell, unquoted <Word> is redirection, so real
+# commands quote it (e.g., -t "renders <Button>"); template placeholders do not.
+QUOTED_RE = re.compile(r"'[^'\n]*'|\"[^\"\n]*\"|`[^`\n]*`")
+CODE_BLOCK_RE = re.compile(r"```[A-Za-z0-9_-]*\s*\n(.*?)\n```", re.S)
+COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
+# Context chapter pointer in router: backticked OR Markdown link target.
+POINTER_RE = re.compile(r"`(docs/context/[^`]+\.md)`"
+                        r"|\]\(\s*(?:\./)?(docs/context/[^)\s#]+\.md)(?:#[^)\s]*)?\s*\)")
+# Legacy router template DoD (up to 1.8): sample commands the repo might not even have.
+OLD_TEMPLATE_DOD = {
+    "npm run typecheck        # exit 0",
+    "npm test                 # all green",
+    "npm test                 # tudo verde",
+}
+
+
+def split_frontmatter(text):
+    """Return (raw_frontmatter, body) or (None, text) if absent."""
+    if not text.startswith("---"):
+        return None, text
+    end = text.find("\n---", 3)
+    if end == -1:
+        return None, text
+    nl = text.find("\n", end + 1)
+    return text[3:end], (text[nl + 1:] if nl != -1 else "")
+
+
+def _strip_comment(v):
+    v = v.strip()
+    if v.startswith("#"):
+        return ""
+    return re.split(r"\s+#", v, maxsplit=1)[0].strip()
+
+
+def _clean(v):
+    return v.strip().strip("'\"")
+
+
+def parse_frontmatter(raw):
+    """Parse the supported YAML subset: scalar, inline list, block list.
+    Any unsupported line becomes an explicit error — never silently ignored."""
+    fm, errs, pending = {}, [], None
+    for ln, line in enumerate(raw.splitlines(), start=2):  # line 1 of the file is '---'
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        m = ITEM_RE.match(line)
+        if m:
+            if pending is None:
+                errs.append(f"frontmatter line {ln}: list item without a parent key")
+                continue
+            if fm[pending] is None:
+                fm[pending] = []
+            fm[pending].append(_clean(_strip_comment(m.group(1))))
+            continue
+        m = KEY_RE.match(line)
+        if not m:
+            errs.append(f"frontmatter line {ln}: unsupported syntax: {stripped!r}")
+            pending = None
+            continue
+        key, val = m.group(1), _strip_comment(m.group(2))
+        pending = None
+        if key in fm:
+            # YAML forbids duplicate keys; accepting would let the last win silently.
+            errs.append(f"frontmatter line {ln}: duplicate key '{key}'")
+            continue
+        if val == "":
+            fm[key] = None          # empty: null scalar, or start of a block list
+            pending = key
+        elif val.startswith("[") and val.endswith("]"):
+            inner = val[1:-1].strip()
+            fm[key] = [_clean(v) for v in inner.split(",")] if inner else []
+        elif val in ("null", "~"):
+            fm[key] = None
+        else:
+            fm[key] = _clean(val)
+    return fm, errs
+
+
+def first_h1(visible):
+    for line in visible.splitlines():
+        if line.startswith("# "):
+            return line[2:].strip()
+    return None
+
+
+def first_yaml_block(text):
+    m = re.search(r"```yaml\s*\n(.*?)\n```", text, flags=re.I | re.S)
+    return m.group(1) if m else None
+
+
+def section_body(visible, heading):
+    m = re.search(rf"^##\s+{re.escape(heading)}\s*$", visible, flags=re.M)
+    if not m:
+        return None
+    start = m.end()
+    nxt = re.search(r"^##\s+", visible[start:], flags=re.M)
+    end = start + nxt.start() if nxt else len(visible)
+    return visible[start:end]
+
+
+def section_body_any(visible, headings):
+    for h in headings:
+        sec = section_body(visible, h)
+        if sec is not None:
+            return sec
+    return None
+
+
+def executable_lines(section):
+    lines = []
+    for block in CODE_BLOCK_RE.findall(section or ""):
+        for line in block.splitlines():
+            stripped = line.strip()
+            if stripped and not stripped.startswith("#"):
+                lines.append(stripped)
+    return lines
+
+
+def has_placeholder(text):
+    return bool(PLACEHOLDER_RE.search(QUOTED_RE.sub("", text or "")))
+
+
+def strip_comments(text):
+    """HTML comments do not count as content (template examples are ignored) — same rule
+    applied to H1 and CURRENT TRUTH / VERDADE ATUAL callouts."""
+    return COMMENT_RE.sub("", text or "")
+
+
+def present(v):
+    """Required field present = non-null and non-empty ('' and [] count as missing)."""
+    return v is not None and v != "" and v != []
+
+
+def validate_recognized_chapter(root, ref_path, errors, warnings):
+    """Recognized chapter declared in the router: enforces its CLOSED-registry content
+    invariant (RECOGNIZED_CHAPTERS). Currently only TESTS.md → requires at least one
+    canonical command, reusing the global DoD criterion (executable_lines)."""
+    label = RECOGNIZED_CHAPTERS.get(ref_path)
+    if label is None:
+        return
+    text = strip_comments((root / ref_path).read_text(encoding="utf-8"))
+    cmds = executable_lines(text)
+    if not cmds:
+        errors.append(f"AGENTS.md: recognized chapter {label} (`{ref_path}`) declared in "
+                      "the Context map has no executable command in a code block — list the "
+                      "canonical test command(s) or remove the pointer (STANDARD §8)")
+    elif has_placeholder("\n".join(cmds)):
+        # warning during the 1.9 transition window: becomes an error in a future release
+        warnings.append(f"AGENTS.md: recognized chapter {label} (`{ref_path}`) contains a "
+                        "placeholder command — list the repo's real command (STANDARD §8)")
+
+
+def validate_router(root, errors, warnings):
+    router = root / "AGENTS.md"
+    if not router.exists():
+        errors.append("AGENTS.md missing — router is mandatory in CASA")
+        return
+
+    text = router.read_text(encoding="utf-8")
+    n = len(text.splitlines())
+    if n > ROUTER_LINE_CAP:
+        warnings.append(f"AGENTS.md has {n} lines (~{ROUTER_LINE_CAP}-line cap) — "
+                        "move detailed content to docs/context/")
+
+    visible = strip_comments(text)
+    raw = first_yaml_block(visible)
+    if raw is None:
+        errors.append("AGENTS.md: missing ```yaml``` block with CASA metadata")
+        fm = {}
+    else:
+        fm, fm_errs = parse_frontmatter(raw)
+        errors.extend(f"AGENTS.md: {e}" for e in fm_errs)
+    for k in sorted(ROUTER_REQUIRED):
+        if isinstance(fm.get(k), list):
+            errors.append(f"AGENTS.md: {k} must be scalar, not a list")
+            fm[k] = None
+
+    missing = ROUTER_REQUIRED - {k for k, v in fm.items() if present(v)}
+    if missing:
+        errors.append(f"AGENTS.md: missing required CASA metadata: {sorted(missing)}")
+
+    repo_id = fm.get("casa-repo-id")
+    if repo_id and ("<" in str(repo_id) or not re.match(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$", str(repo_id))):
+        errors.append("AGENTS.md: casa-repo-id is invalid or still contains a placeholder")
+
+    tier = fm.get("casa-tier")
+    if tier and tier not in ROUTER_TIERS:
+        errors.append(f"AGENTS.md: invalid casa-tier '{tier}' (valid: {sorted(ROUTER_TIERS)})")
+
+    version = fm.get("casa-version")
+    if version and not re.match(r"^\d+\.\d+(?:\.\d+)?$", str(version)):
+        errors.append("AGENTS.md: casa-version must be simple semver (e.g., 1.1)")
+    elif version:
+        # Declared contract vs. installed toolchain coherence (ADR-0010): warning, never error.
+        decl = tuple(int(p) for p in str(version).split("."))[:2]
+        tool = tuple(int(p) for p in CONTRACT_VERSION.split("."))[:2]
+        if decl < tool:
+            warnings.append(
+                f"AGENTS.md: declared contract (casa-version {version}) is behind the installed "
+                f"toolchain ({CONTRACT_VERSION}) — read the casa-standard CHANGELOG and update "
+                "the declaration once this repo satisfies the new contract (ADR-0010)")
+        elif decl > tool:
+            warnings.append(
+                f"AGENTS.md: installed toolchain ({CONTRACT_VERSION}) is behind the declared "
+                f"contract (casa-version {version}) — run scripts/casa-init from a current "
+                "casa-standard snapshot (ADR-0010)")
+
+    ref = fm.get("casa-standard-ref")
+    if ref and ("<" in str(ref) or str(ref).strip() in {"", "unknown"}):
+        errors.append("AGENTS.md: casa-standard-ref is invalid or still contains a placeholder")
+
+    dod = section_body_any(visible, ROUTER_DOD_HEADINGS)
+    dod_lines = executable_lines(dod)
+    if dod is None:
+        errors.append("AGENTS.md: missing section '## How to validate (global repo DoD)'")
+    elif not dod_lines:
+        errors.append("AGENTS.md: global DoD has no executable line in a code block "
+                      "(HTML comments do not count)")
+    elif has_placeholder("\n".join(dod_lines)):
+        warnings.append("AGENTS.md: global DoD contains a placeholder — declare real commands "
+                        "(STANDARD §8; warning during 1.9 window)")
+    elif set(dod_lines) <= OLD_TEMPLATE_DOD:
+        warnings.append("AGENTS.md: global DoD still uses the legacy template sample (npm run "
+                        "typecheck/npm test) — replace with this repo's real commands (STANDARD §7)")
+
+    pointers = set()
+    for m in POINTER_RE.finditer(visible):
+        pointers.add(m.group(1) or m.group(2))
+    for ref_path in sorted(pointers):
+        if not (root / ref_path).exists():
+            errors.append(f"AGENTS.md: Context map points to missing file '{ref_path}'")
+        else:
+            validate_recognized_chapter(root, ref_path, errors, warnings)
+
+
+def check_backlog_location(root, warnings):
+    """Backlog inside docs/context/ is an anti-pattern (§5.1; ADR-0002 Confirmation).
+    Checked via directory listing with lowercase comparison — deterministic across
+    case-sensitive (CI) and case-insensitive (macOS/Windows) filesystems (ADR-0011)."""
+    ctx = root / "docs" / "context"
+    if not ctx.is_dir():
+        return
+    for p in sorted(ctx.iterdir()):
+        if p.is_file() and p.name.lower() == "backlog.md":
+            warnings.append(
+                f"docs/context/{p.name}: backlog tracks pending work, not imperative state "
+                "(STANDARD §5.1) — move to docs/BACKLOG.md and update router pointers "
+                "(ADR-0011)")
+
+
+def render_readme(label, rows):
+    lines = [f"# {label}", "", "<!-- GENERATED by scripts/docs-check — do not edit by hand -->", "",
+             "| id | title | status |", "|---|---|---|"]
+    lines += [f"| [{d['id']}]({Path(d['path']).name}) | {d['title']} | {d['status']} |"
+              for d in sorted(rows, key=lambda d: d["id"])]
+    return "\n".join(lines) + "\n"
+
+
+def _git(root, args):
+    return subprocess.run(["git", *args], cwd=root, capture_output=True,
+                          encoding="utf-8", errors="replace")
+
+
+def _body_without_frontmatter(text):
+    raw, body = split_frontmatter(text)
+    return body if raw is not None else text
+
+
+def split_current_truth(body):
+    """Return (body without the 1st top CURRENT TRUTH / VERDADE ATUAL block, block lines).
+    The block is the first blockquote starting with the marker before the first '## '
+    heading — in full, plus trailing blank lines. Only the FIRST counts: later blockquotes
+    are body text. VA_MAX_LINES is checked separately so legacy long blocks aren't frozen."""
+    lines = body.splitlines()
+    top_end = next((n for n, ln in enumerate(lines) if ln.startswith("## ")), len(lines))
+    for i in range(top_end):
+        if VA_RE.match(lines[i]):
+            j = i
+            while j < len(lines) and lines[j].lstrip().startswith(">"):
+                j += 1
+            block = lines[i:j]
+            while j < len(lines) and not lines[j].strip():
+                j += 1
+            return "\n".join(lines[:i] + lines[j:]).strip(), block
+    return "\n".join(lines).strip(), []
+
+
+def normalized_adr_body(text):
+    return split_current_truth(_body_without_frontmatter(text))[0]
+
+
+def _status_of(text):
+    raw, _ = split_frontmatter(text)
+    st = parse_frontmatter(raw or "")[0].get("status")
+    return st if isinstance(st, str) else None
+
+
+def _read_blobs(root, shas, raw=False):
+    """Read multiple git blobs in a single `git cat-file --batch` call."""
+    if not shas:
+        return {}
+    r = subprocess.run(["git", "cat-file", "--batch"], cwd=root, capture_output=True,
+                       input="\n".join(shas).encode() + b"\n")
+    out, pos, blobs = r.stdout, 0, {}
+    for sha in shas:
+        nl = out.index(b"\n", pos)
+        size = int(out[pos:nl].split()[2])
+        data = out[nl + 1:nl + 1 + size]
+        blobs[sha] = data if raw else data.decode("utf-8", errors="replace")
+        pos = nl + 1 + size + 1
+    return blobs
+
+
+def check_adr_immutability(root, base_ref, errors):
+    """Compare every immutable ADR in the merge-base (--base-ref) against current state
+    by derived NUMBER — not path, so renaming a file cannot conceal body edits."""
+    mb = _git(root, ["merge-base", base_ref, "HEAD"])
+    if mb.returncode != 0:
+        errors.append(f"ADR immutability: could not compare against '{base_ref}' "
+                      f"({mb.stderr.strip() or mb.stdout.strip()})")
+        return
+    base = mb.stdout.strip()
+    tree = _git(root, ["ls-tree", base, "docs/adr/"])
+    entries = []  # (number, path at base, blob sha)
+    for ln in tree.stdout.splitlines():
+        meta, _, path = ln.partition("\t")
+        m = FILENAME_RE.match(Path(path).name)
+        if m and meta.split()[1] == "blob":
+            entries.append((m.group(1), path, meta.split()[2]))
+    blobs = _read_blobs(root, [sha for _, _, sha in entries])
+
+    current = {}
+    adr_dir = root / "docs" / "adr"
+    for p in (sorted(adr_dir.glob("*.md")) if adr_dir.is_dir() else []):
+        m = FILENAME_RE.match(p.name)
+        if m:
+            current.setdefault(m.group(1), []).append(p)
+
+    where = f"in {base_ref} (merge-base {base[:7]})"
+    for num, old_path, sha in entries:
+        old_text = blobs[sha]
+        old_st = _status_of(old_text)
+        if old_st not in IMMUTABLE_NEXT:
+            continue
+        if num not in current:
+            errors.append(f"{old_path}: ADR-{num} with status '{old_st}' {where} was removed — "
+                          "accepted ADRs are never deleted; mark superseded/deprecated")
+            continue
+        for p in current[num]:
+            rel = p.relative_to(root).as_posix()
+            new_text = p.read_text(encoding="utf-8")
+            new_st = _status_of(new_text)
+            if new_st not in IMMUTABLE_NEXT[old_st]:
+                errors.append(f"{rel}: ADR-{num} status regressed from '{old_st}' {where} to "
+                              f"'{new_st}' — allowed: {sorted(IMMUTABLE_NEXT[old_st])}")
+            old_block = split_current_truth(_body_without_frontmatter(old_text))[1]
+            new_block = split_current_truth(_body_without_frontmatter(new_text))[1]
+            if len(new_block) > VA_MAX_LINES and new_block != old_block:
+                errors.append(f"{rel}: CURRENT TRUTH / VERDADE ATUAL block of ADR-{num} has "
+                              f"{len(new_block)} lines — max {VA_MAX_LINES} (STANDARD §5.1); "
+                              "legacy longer blocks are tolerated only while untouched")
+            if normalized_adr_body(old_text) != normalized_adr_body(new_text):
+                moved = f" (renamed from {old_path})" if rel != old_path else ""
+                errors.append(f"{rel}: ADR with status '{old_st}' {where} had its body "
+                              f"modified{moved} — create a new ADR that supersedes it; only "
+                              "frontmatter and the top CURRENT TRUTH block may change")
+
+
+def tree_files(root):
+    """Files subject to tree hygiene, using '/' separators. In a git repo: tracked + non-ignored
+    untracked files (an ignored .DS_Store never blocks commits). Outside git: os.walk."""
+    r = _git(root, ["ls-files", "-z", "--cached", "--others", "--exclude-standard"])
+    if r.returncode == 0:
+        return sorted({p for p in r.stdout.split("\0")
+                       if p and not IGNORED_DIRS.intersection(p.split("/")[:-1])})
+    out = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [x for x in dirnames if x not in IGNORED_DIRS]
+        for fn in filenames:
+            out.append(Path(os.path.relpath(os.path.join(dirpath, fn), root)).as_posix())
+    return sorted(out)
+
+
+def materialize_index(root):
+    """Snapshot of the git INDEX — what will actually enter the commit, not the working tree —
+    read from the tree `git write-tree` would record: `git add -N` entries are excluded,
+    unmerged conflicts abort cleanly, sparse-checkout/skip-worktree do not interfere, and
+    non-UTF-8 filenames pass. Only AGENTS.md and docs/ materialize file contents (symlinks
+    resolved inside the tree); remaining paths travel as NAMES only (hygiene, implemented-by)."""
+    top = _git(root, ["rev-parse", "--show-toplevel"])
+    if top.returncode != 0:
+        sys.exit("docs-check --staged: not inside a git repository")
+    root = Path(top.stdout.strip())
+    wt = _git(root, ["write-tree"])
+    if wt.returncode != 0:
+        sys.exit("docs-check --staged: index cannot form a tree (unmerged conflict?) — "
+                 + wt.stderr.strip())
+    ls = subprocess.run(["git", "ls-tree", "-r", "-z", "--full-tree", wt.stdout.strip()],
+                        cwd=root, capture_output=True)
+    entries = {}  # path (bytes) → (mode, kind, sha)
+    for rec in ls.stdout.split(b"\0"):
+        if rec:
+            meta, _, path = rec.partition(b"\t")
+            mode, kind, sha = meta.split()
+            entries[path] = (mode, kind, sha.decode())
+    wanted = [p for p in entries if p == b"AGENTS.md" or p.startswith(b"docs/")]
+    blobs = _read_blobs(root, sorted({entries[p][2] for p in wanted
+                                      if entries[p][1] == b"blob"}), raw=True)
+
+    def content(path):
+        for _ in range(8):  # symlink → target inside tree; target outside = broken link
+            mode, kind, sha = entries.get(path, (None, None, None))
+            if kind != b"blob":
+                return None
+            if sha not in blobs:
+                blobs.update(_read_blobs(root, [sha], raw=True))
+            if mode != b"120000":
+                return blobs[sha]
+            path = posixpath.normpath(posixpath.join(posixpath.dirname(path), blobs[sha]))
+        return None
+
+    tmp = Path(tempfile.mkdtemp(prefix="casa-staged-"))
+    for p in wanted:
+        data = content(p)
+        if data is not None:
+            dest = tmp / os.fsdecode(p)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(data)
+    return tmp, {os.fsdecode(p) for p in entries}
+
+
+def main():
+    # Windows defaults to cp1252 on redirected stdout; output contains non-ASCII ("·", "—").
+    for s in (sys.stdout, sys.stderr):
+        if hasattr(s, "reconfigure"):
+            s.reconfigure(encoding="utf-8", errors="replace")
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--root", default=".")
+    ap.add_argument("--emit-index", action="store_true")
+    ap.add_argument("--warn-only", action="store_true",
+                    help="print errors but exit 0 (adoption window, STANDARD §10)")
+    ap.add_argument("--check-adr-immutability", action="store_true",
+                    help="compare modified ADRs against --base-ref and block any body amendment")
+    ap.add_argument("--base-ref", default=os.environ.get("CASA_BASE_REF", "origin/main"))
+    ap.add_argument("--staged", action="store_true",
+                    help="validate git index contents (what enters the commit) — pre-commit mode")
+    args = ap.parse_args()
+    if args.staged and (args.emit_index or args.check_adr_immutability):
+        ap.error("--staged cannot be combined with --emit-index or --check-adr-immutability")
+    root = Path(args.root)
+    staged_tmp = index_names = None
+    if args.staged:
+        staged_tmp, index_names = materialize_index(root)
+        root = staged_tmp
+    try:
+        run_checks(args, root, index_names)
+    finally:
+        if staged_tmp is not None:
+            shutil.rmtree(staged_tmp, ignore_errors=True)
+
+
+def run_checks(args, root, index_names=None):
+    """index_names: in --staged mode, the set of indexed paths — hygiene and implemented-by
+    inspect path NAMES directly without creating empty files on disk."""
+    errors, warnings, docs = [], [], {}
+    index_dirs = set()
+    for n in index_names or ():
+        parts = n.split("/")
+        index_dirs.update("/".join(parts[:k]) for k in range(1, len(parts)))
+
+    def path_exists(ref):
+        if index_names is None:
+            return (root / ref).exists()
+        ref = ref.strip()
+        ref = (ref[2:] if ref.startswith("./") else ref).rstrip("/")
+        return ref in index_names or ref in index_dirs
+
+    validate_router(root, errors, warnings)
+    check_backlog_location(root, warnings)
+
+    # Collect, derive, and validate each document
+    for layer, prefix in LAYERS.items():
+        folder = root / "docs" / layer
+        if not folder.exists():
+            continue
+        for path in sorted(folder.glob("*.md")):
+            if path.name == "README.md" or path.name.endswith(".template.md"):
+                continue
+            rel = path.relative_to(root).as_posix()
+            m = FILENAME_RE.match(path.name)
+            if not m:
+                errors.append(f"{rel}: filename does not match NNNN-kebab.md (id is derived from it)")
+                continue
+            did = f"{prefix}-{m.group(1)}"
+            text = path.read_text(encoding="utf-8")
+            raw_fm, body = split_frontmatter(text)
+            if raw_fm is None:
+                errors.append(f"{rel}: missing frontmatter")
+                continue
+            fm, fm_errs = parse_frontmatter(raw_fm)
+            errors.extend(f"{did}: {e}" for e in fm_errs)
+            for k in fm:
+                if k not in KNOWN_KEYS:
+                    warnings.append(f"{did}: unknown frontmatter field '{k}' — register the "
+                                    "extension in a repo ADR or remove it (STANDARD §6)")
+            visible = re.sub(r"<!--.*?-->", "", body, flags=re.S)
+            title = first_h1(visible)
+            if not title:
+                errors.append(f"{did}: missing H1 in body (title is derived from it)")
+            for k in sorted(REQUIRED):
+                if isinstance(fm.get(k), list):
+                    errors.append(f"{did}: {k} must be scalar, not a list")
+                    fm[k] = None
+            missing = REQUIRED - {k for k, v in fm.items() if present(v)}
+            if missing:
+                errors.append(f"{did}: missing required fields: {sorted(missing)}")
+            st = fm.get("status")
+            if st and st not in STATUS_VOCAB[layer]:
+                errors.append(f"{did}: invalid status '{st}' (valid: {sorted(STATUS_VOCAB[layer])})")
+            dt = fm.get("date")
+            if dt:
+                try:
+                    datetime.strptime(str(dt), "%Y-%m-%d")
+                except ValueError:
+                    errors.append(f"{did}: invalid date '{dt}' (calendar date YYYY-MM-DD)")
+            if did in docs:
+                errors.append(f"{rel}: duplicate derived id '{did}' (also in {docs[did]['path']})")
+                continue
+            ib = fm.get("implemented-by") or []
+            # as_posix: on Windows str(Path) uses "\", diverging from CI-generated indices
+            docs[did] = {"id": did, "path": path.relative_to(root).as_posix(), "layer": layer,
+                         "title": title, "status": st,
+                         "builds-on": fm.get("builds-on") or [],
+                         "superseded-by": fm.get("superseded-by"),
+                         "implemented-by": ib if isinstance(ib, list) else [ib],
+                         "_visible": visible}
+            if fm.get("design-ref"):
+                # exported to index: known graph field, never a phantom key (ADR-0014)
+                docs[did]["design-ref"] = fm.get("design-ref")
+
+    # Causal graph and layer-specific invariants
+    for d in docs.values():
+        bo = d["builds-on"]
+        if not isinstance(bo, list):
+            errors.append(f"{d['id']}: builds-on must be a list")
+            bo = [bo]
+        for ref in bo:
+            if ":" in ref:
+                warnings.append(f"{d['id']}: cross-repo reference '{ref}' (not verified locally)")
+            elif ref == d["id"]:
+                warnings.append(f"{d['id']}: builds-on points to the document itself")
+            elif ref not in docs:
+                errors.append(f"{d['id']}: builds-on points to non-existent doc '{ref}'")
+        sb = d["superseded-by"]
+        if sb:
+            if d["layer"] != "adr":
+                errors.append(f"{d['id']}: superseded-by is an ADR-only field (specs use status 'deprecated')")
+            elif isinstance(sb, list):
+                errors.append(f"{d['id']}: superseded-by must be scalar, not a list")
+            elif ":" in sb:
+                warnings.append(f"{d['id']}: cross-repo superseded-by '{sb}' (not verified locally)")
+            elif sb == d["id"]:
+                errors.append(f"{d['id']}: superseded-by points to the ADR itself")
+            elif sb not in docs:
+                errors.append(f"{d['id']}: non-existent superseded-by target '{sb}'")
+            elif docs[sb]["layer"] != "adr":
+                errors.append(f"{d['id']}: superseded-by '{sb}' is not an ADR")
+            if d["layer"] == "adr" and d["status"] != "superseded":
+                errors.append(f"{d['id']}: has superseded-by set while status != superseded")
+        if d["layer"] == "adr" and d["status"] == "superseded":
+            if not sb:
+                errors.append(f"{d['id']}: status is superseded without superseded-by")
+            if not VA_RE.search(d["_visible"]):
+                errors.append(f"{d['id']}: superseded ADR missing real '> CURRENT TRUTH' "
+                              "(or '> VERDADE ATUAL') callout (template comments do not count)")
+            else:
+                block = split_current_truth(d["_visible"])[1]
+                if len(block) > VA_MAX_LINES:
+                    warnings.append(f"{d['id']}: CURRENT TRUTH / VERDADE ATUAL block has "
+                                    f"{len(block)} lines (max {VA_MAX_LINES}, at top — STANDARD §5.1); "
+                                    "reduce it when next edited — immutability lint enforces the cap")
+        if d["layer"] == "specs":
+            if d["status"] in ("accepted", "implemented"):
+                open_questions = section_body_any(d["_visible"], SPEC_OPEN_QUESTIONS_HEADINGS)
+                if open_questions is None:
+                    errors.append(f"{d['id']}: missing '## Open questions' section")
+                elif re.search(r"(?m)^\s*[-*]\s+\[\s\]", open_questions):
+                    errors.append(f"{d['id']}: open questions still have unchecked items — "
+                                  "cannot leave draft without deciding or removing the blocker")
+
+                dod = section_body(d["_visible"], "Definition of Done")
+                if dod is None:
+                    errors.append(f"{d['id']}: missing '## Definition of Done' — required to leave draft")
+                else:
+                    if has_placeholder(dod):
+                        errors.append(f"{d['id']}: Definition of Done contains a placeholder — "
+                                      "declare real commands and binary pass criteria")
+                    if not executable_lines(dod):
+                        errors.append(f"{d['id']}: Definition of Done has no executable command "
+                                      "in a code block")
+            if d["status"] == "implemented":
+                if not d["implemented-by"]:
+                    errors.append(f"{d['id']}: implemented without implemented-by")
+                for ref in d["implemented-by"]:
+                    if has_placeholder(str(ref)):
+                        errors.append(f"{d['id']}: implemented-by contains placeholder '{ref}'")
+                    elif not path_exists(str(ref)):
+                        errors.append(f"{d['id']}: implemented-by points to non-existent path '{ref}'")
+                verif = section_body_any(d["_visible"], SPEC_VERIFICATION_HEADINGS)
+                if verif is None:
+                    errors.append(f"{d['id']}: implemented without '## Verification' section")
+                elif any(ph in verif for ph in VERIFICATION_PLACEHOLDERS):
+                    errors.append(f"{d['id']}: ## Verification still contains template placeholder — "
+                                  "record actual DoD evidence")
+                elif not [ln for ln in verif.splitlines()
+                          if ln.strip() and not ln.strip().startswith("```")]:
+                    errors.append(f"{d['id']}: ## Verification has no textual DoD evidence")
+
+    # Tree hygiene: files git tracks or would track across the whole repository
+    if index_names is not None:
+        files = sorted(n for n in index_names if not IGNORED_DIRS.intersection(n.split("/")[:-1]))
+    else:
+        files = tree_files(root)
+    present_files = set(files)
+    for rel in files:
+        fn = rel.rsplit("/", 1)[-1]
+        if any(re.search(pat, fn) for pat in TRASH_ALWAYS):
+            errors.append(f"hygiene: forbidden file in tree: {rel}")
+            continue
+        m = DUP_RE.match(fn)
+        if m:
+            parent = rel[:-len(fn)]
+            if parent + m.group("base") + m.group("ext") in present_files:
+                errors.append(f"hygiene: probable sync duplicate: {rel} "
+                              f"(original '{m.group('base')}{m.group('ext')}' exists alongside it)")
+
+    # Indices: build in memory; --emit-index writes, otherwise verify freshness
+    index = [{k: v for k, v in d.items() if not k.startswith("_")} for d in docs.values()]
+    index.sort(key=lambda d: d["id"])
+    index_text = json.dumps(index, indent=2, ensure_ascii=False) + "\n"
+    readmes = {}
+    for layer, label in (("adr", "ADRs"), ("specs", "Specs")):
+        folder = root / "docs" / layer
+        if folder.exists():
+            readmes[folder / "README.md"] = render_readme(
+                label, [d for d in index if d["layer"] == layer])
+
+    if args.emit_index:
+        (root / "docs").mkdir(exist_ok=True)
+        (root / "docs" / "index.json").write_text(index_text, encoding="utf-8")
+        for p, content in readmes.items():
+            p.write_text(content, encoding="utf-8")
+        print(f"Generated READMEs and index.json ({len(index)} docs).")
+    else:
+        for p, content in readmes.items():
+            rel = p.relative_to(root)
+            has_rows = content.count("\n") > 6
+            if not p.exists():
+                if has_rows:
+                    errors.append(f"indices: {rel} missing — run scripts/docs-check --emit-index")
+            elif p.read_text(encoding="utf-8") != content:
+                errors.append(f"indices: {rel} out of date — run scripts/docs-check --emit-index")
+        ij = root / "docs" / "index.json"
+        if ij.exists() and ij.read_text(encoding="utf-8") != index_text:
+            errors.append("indices: docs/index.json out of date — run scripts/docs-check --emit-index")
+
+    if args.check_adr_immutability:
+        check_adr_immutability(root, args.base_ref, errors)
+
+    for w in warnings:
+        print(f"WARNING: {w}")
+    for e in errors:
+        print(f"ERROR:   {e}")
+    print(f"\n{len(docs)} docs · {len(errors)} error(s) · {len(warnings)} warning(s)")
+    sys.exit(0 if (args.warn_only or not errors) else 1)
+
+
+if __name__ == "__main__":
+    main()

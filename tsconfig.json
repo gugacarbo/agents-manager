@@ -1,0 +1,21 @@
+{
+	"compilerOptions": {
+		"strict": true,
+		"noEmit": true,
+		"jsx": "react-jsx",
+		"moduleResolution": "bundler",
+		"target": "ES2022",
+		"module": "ESNext",
+		"lib": ["ES2022", "DOM", "DOM.Iterable"],
+		"skipLibCheck": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true
+	},
+	"include": [
+		"src",
+		"tests",
+		"vite.config.ts",
+		"vitest.config.ts",
+		"playwright.config.ts"
+	]
+}

@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# CASA Standard local gate (STANDARD §3, ADR-0006) for repos without a CI adapter.
+# (The phrase above is the marker by which casa-init recognizes and updates this hook.)
+# Installed by casa-init in the repo's effective hooks directory (honors local core.hooksPath
+# and worktrees). Validates the git INDEX — what will enter the commit — not the working tree.
+# Bypassing requires an explicit act (git commit --no-verify). Two exceptions apply because
+# git hooks are shared across worktrees: a checkout without the toolchain (branch prior to
+# adoption) is not blocked, and a validator older than --staged runs in disk mode.
+set -euo pipefail
+top="$(git rev-parse --show-toplevel)"
+dc="$top/scripts/docs-check"
+if [ ! -f "$dc" ]; then
+    echo "CASA pre-commit: scripts/docs-check absent in this checkout — gate does not apply here." >&2
+    exit 0
+fi
+if grep -q -- '"--staged"' "$dc"; then
+    exec python3 "$dc" --staged --root "$top"
+fi
+echo "CASA pre-commit: docs-check in this checkout predates --staged — validating working tree (run casa-init on this branch)." >&2
+exec python3 "$dc" --root "$top"

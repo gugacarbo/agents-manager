@@ -1,0 +1,73 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.6.9/schema.json",
+	"files": {
+		"includes": [
+			"**/src/**/*",
+			"**/tests/**/*",
+			"**/*.config.ts",
+			"**/index.html",
+			"!**/dist",
+			"!**/target",
+			"!**/src-tauri/target",
+			"!**/src/bindings",
+			"!**/coverage",
+			"!**/.vitest-coverage*",
+			"!**/test-results",
+			"!**/playwright-report"
+		]
+	},
+	"formatter": {
+		"enabled": true,
+		"indentStyle": "tab"
+	},
+	"assist": {
+		"actions": {
+			"source": {
+				"organizeImports": "on"
+			}
+		}
+	},
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"preset": "recommended",
+			"style": {
+				"noExcessiveLinesPerFile": {
+					"level": "error",
+					"options": {
+						"maxLines": 400
+					}
+				}
+			},
+			"suspicious": {
+				"noConsole": "error"
+			}
+		}
+	},
+	"javascript": {
+		"formatter": {
+			"quoteStyle": "double"
+		}
+	},
+	"overrides": [
+		{
+			"includes": [
+				"**/*.test.ts",
+				"**/*.test.tsx",
+				"**/*.spec.ts",
+				"**/*.spec.tsx"
+			],
+			"linter": {
+				"rules": {
+					"style": {
+						"noExcessiveLinesPerFile": "off"
+					},
+					"suspicious": {
+						"noThenProperty": "off",
+						"noConsole": "off"
+					}
+				}
+			}
+		}
+	]
+}

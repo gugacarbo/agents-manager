@@ -1,0 +1,217 @@
+#!/usr/bin/env python3
+"""
+docs-reserve — reserves the next NNNN number and scaffolds an ADR or Spec from template.
+Decision and ledger format: ADR-0013 · behavior: SPEC-0007.
+
+Usage:
+  scripts/docs-reserve adr  "decision title"        [--dry-run] [--no-emit-index]
+  scripts/docs-reserve spec "behavior description"  [--dry-run] [--no-emit-index]
+
+Ledger: docs/BACKLOG.md (ADR-0002), sections `## ADR Reservations` and `## Spec Reservations`
+(legacy Portuguese `## Reservas ADR` and `## Reservas Spec` are also recognized in place —
+ADR-0019) with table `| NNNN | title | date | status |` (first cell also accepts ADR-NNNN /
+SPEC-NNNN). Next number is max(files in docs/<layer>/, NNNNs in table) + 1 — manual
+reservations count; numbers freed by hand are never reused (renumbering cascades, STANDARD §5).
+Any unparseable line inside the section is FLAGGED explicitly, never silently ignored
+(ADR-0003): if it is a manual reservation, migrate it into the table BEFORE trusting the
+suggested number.
+
+Out of scope (ADR-0013): coordination across parallel worktrees/branches — each checkout
+sees its own BACKLOG; merge-time text conflicts on the ledger table provide early detection.
+"""
+import argparse, re, subprocess, sys, unicodedata
+from datetime import date
+from pathlib import Path
+
+#            layer → (folder,  prefix, accepted section headings,                         repo template)
+LAYERS = {
+    "adr":  ("adr",   "ADR",  ("## ADR Reservations", "## Reservas ADR"),   "docs/templates/adr.template.md"),
+    "spec": ("specs", "SPEC", ("## Spec Reservations", "## Reservas Spec"), "docs/templates/spec.template.md"),
+}
+FILE_RE = re.compile(r"^(\d{4})-[a-z0-9][a-z0-9-]*\.md$")
+ROW_RE = re.compile(r"^\|\s*(?:ADR-|SPEC-)?(\d{4})\s*\|")
+TABLE_HEADER = "| NNNN | title | date | status |"
+TABLE_SEP = "|---|---|---|---|"
+
+
+def utf8_stdio():
+    for s in (sys.stdout, sys.stderr):
+        if hasattr(s, "reconfigure"):
+            s.reconfigure(encoding="utf-8", errors="replace")
+
+
+def slugify(title):
+    ascii_ = unicodedata.normalize("NFKD", title).encode("ascii", "ignore").decode()
+    slug = re.sub(r"[^a-z0-9]+", "-", ascii_.lower()).strip("-")
+    return slug
+
+
+def classify(line):
+    s = line.strip()
+    if not s:
+        return "blank"
+    if not s.startswith("|"):
+        return "unparsed"
+    if re.match(r"^\|[\s|:-]+\|$", s):
+        return "sep"
+    first = s.strip("|").split("|", 1)[0].strip()
+    if first in ("NNNN", "ID"):
+        return "header"
+    if ROW_RE.match(s):
+        return "row"
+    return "unparsed"
+
+
+def find_section(lines, headings):
+    """Return (start, end) of the first matching section — from heading to next '## ' or EOF."""
+    if isinstance(headings, str):
+        headings = (headings,)
+    for heading in headings:
+        for i, ln in enumerate(lines):
+            if ln.strip() == heading:
+                end = next((j for j in range(i + 1, len(lines))
+                            if lines[j].startswith("## ")), len(lines))
+                return i, end
+    return None
+
+
+def main():
+    utf8_stdio()
+    ap = argparse.ArgumentParser(
+        description="reserve the next NNNN and scaffold an ADR/Spec from template (SPEC-0007)")
+    ap.add_argument("layer", choices=sorted(LAYERS))
+    ap.add_argument("title")
+    ap.add_argument("--root", default=".")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="show number, file path, and ledger row without writing anything")
+    ap.add_argument("--no-emit-index", action="store_true",
+                    help="skip index regeneration at the end")
+    args = ap.parse_args()
+
+    root = Path(args.root).resolve()
+    folder, prefix, headings, tpl_rel = LAYERS[args.layer]
+    canonical_heading = headings[0]
+    today = date.today().isoformat()
+
+    # Prerequisite (ADR-0011): refuse to create a second ledger if backlog sits in docs/context/.
+    ctx = root / "docs" / "context"
+    backlog = root / "docs" / "BACKLOG.md"
+    if ctx.is_dir() and not backlog.exists():
+        for p in ctx.iterdir():
+            if p.is_file() and p.name.lower() == "backlog.md":
+                sys.exit(f"docs-reserve: backlog is at docs/context/{p.name} (anti-pattern, "
+                         "STANDARD §5.1/ADR-0011) — move it to docs/BACKLOG.md before reserving; "
+                         "refusing to create a second ledger.")
+
+    tpl = root / tpl_rel
+    if not tpl.exists():
+        sys.exit(f"docs-reserve: template missing ({tpl_rel}) — run casa-init on this repo.")
+
+    slug = slugify(args.title)
+    if not slug:
+        sys.exit(f"docs-reserve: title {args.title!r} produces no ASCII slug — use a title "
+                 "containing letters or digits.")
+
+    # Numbers in use: existing layer files + ledger table rows. Unreadable lines are flagged.
+    used = set()
+    docs_dir = root / "docs" / folder
+    if docs_dir.is_dir():
+        for p in docs_dir.glob("*.md"):
+            m = FILE_RE.match(p.name)
+            if m:
+                used.add(int(m.group(1)))
+
+    lines = backlog.read_text(encoding="utf-8").splitlines() if backlog.exists() else []
+    section = find_section(lines, headings)
+    if section:
+        for i in range(section[0] + 1, section[1]):
+            kind = classify(lines[i])
+            if kind == "row":
+                used.add(int(ROW_RE.match(lines[i].strip()).group(1)))
+            elif kind == "unparsed":
+                print(f"WARNING: docs/BACKLOG.md line {i + 1} unreadable by docs-reserve: "
+                      f"{lines[i].strip()!r} — if this is a manual reservation, migrate it into "
+                      "the table BEFORE trusting the suggested number (ADR-0013)")
+
+    nxt = max(used) + 1 if used else 1
+    if nxt > 9999:
+        sys.exit("docs-reserve: numbering exhausted (>9999) — something is seriously wrong.")
+    gaps = sorted(set(range(1, max(used) + 1)) - used) if used else []
+    if gaps:
+        shown = ", ".join(f"{g:04d}" for g in gaps[:8]) + ("…" if len(gaps) > 8 else "")
+        print(f"note: layer numbering has {len(gaps)} gap(s) ({shown}) — gaps are never "
+              "reused; inspect the ledger if unexpected.")
+
+    doc_id = f"{prefix}-{nxt:04d}"
+    fname = f"{nxt:04d}-{slug}.md"
+    target = docs_dir / fname
+    if target.exists():
+        sys.exit(f"docs-reserve: {target} already exists — never overwriting.")
+
+    safe_title = args.title.replace("|", "\\|")
+    row = f"| {nxt:04d} | {safe_title} | {today} | in use |"
+
+    if args.dry_run:
+        print(f"[dry-run] Would reserve {doc_id}")
+        print(f"[dry-run] Would create docs/{folder}/{fname}")
+        print(f"[dry-run] Would append to ledger: {row}")
+        return
+
+    # Scaffold document from the REPO template (distributed by casa-init): stamp today's date
+    # and set H1 to the title — title/id are derived (STANDARD §6), nothing else is pre-filled.
+    text = tpl.read_text(encoding="utf-8")
+    if "date: YYYY-MM-DD" in text:
+        text = text.replace("date: YYYY-MM-DD", f"date: {today}", 1)
+    elif "date: AAAA-MM-DD" in text:
+        text = text.replace("date: AAAA-MM-DD", f"date: {today}", 1)
+    else:
+        print("WARNING: template missing 'date: YYYY-MM-DD' placeholder — check the date in the created doc.")
+    # H1 = first '# ' line of the BODY: inside frontmatter, '# ' is a YAML comment (the spec
+    # template has '# design-ref: …') and must not receive the title.
+    fm_end = re.search(r"\A---\n.*?\n---\n", text, flags=re.S)
+    head, body = (text[:fm_end.end()], text[fm_end.end():]) if fm_end else ("", text)
+    body, n = re.subn(r"^# .*$", lambda m: f"# {args.title}", body, count=1, flags=re.M)
+    if not n:
+        print("WARNING: template has no H1 ('# …') in body — derived title will be missing.")
+    text = head + body
+
+    # Ledger: create file/section if missing; append new row at the end of the section's table.
+    if not lines:
+        lines = [f"# Backlog — {root.name}", "",
+                 "Pending items and numbering reservations (STANDARD §5, ADR-0002, ADR-0013).",
+                 "Reserve with `scripts/docs-reserve adr|spec \"title\"` — any line outside",
+                 "the table format is flagged explicitly, never ignored in silence.", ""]
+    section = find_section(lines, headings)
+    if section is None:
+        if lines and lines[-1].strip():
+            lines.append("")
+        lines += [canonical_heading, "", TABLE_HEADER, TABLE_SEP]
+        section = find_section(lines, headings)
+    start, end = section
+    insert_at = start
+    for i in range(start + 1, end):
+        if classify(lines[i]) in ("header", "sep", "row"):
+            insert_at = i
+    if insert_at == start:  # section exists without a table yet
+        lines[end:end] = [TABLE_HEADER, TABLE_SEP]
+        insert_at = end + 1
+        end += 2
+    lines.insert(insert_at + 1, row)
+
+    docs_dir.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(text.encode("utf-8"))          # preserve LF on Windows
+    backlog.write_bytes(("\n".join(lines) + "\n").encode("utf-8"))
+    print(f"Reserved {doc_id}")
+    print(f"Created docs/{folder}/{fname}")
+    print("Updated docs/BACKLOG.md")
+
+    check = root / "scripts" / "docs-check"
+    if not args.no_emit_index and check.exists():
+        r = subprocess.run([sys.executable, str(check), "--root", str(root), "--emit-index"],
+                           capture_output=True, encoding="utf-8", errors="replace")
+        print(r.stdout.strip() or "(emit-index produced no output)")
+    print("Run: python3 scripts/docs-check   # the gate remains the authority")
+
+
+if __name__ == "__main__":
+    main()

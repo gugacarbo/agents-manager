@@ -1,0 +1,8 @@
+.husky/_/
+node_modules/
+dist/
+target/
+src-tauri/target/
+coverage/
+playwright-report/
+test-results/

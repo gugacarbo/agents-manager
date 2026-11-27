@@ -1,0 +1,40 @@
+# CASA Standard CI gate (§3/§8) — installed by casa-init at
+# .github/workflows/docs-check.yml when the repo has a GitHub remote (ADR-0006).
+# casa-init replaces `branches: [main]` with the repo's default branch. For the gate
+# to actually block bad changes, mark `docs-check` as a required status check on that branch.
+name: docs-check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  merge_group: # merge queue: required status checks must also trigger here
+
+permissions:
+  contents: read
+
+jobs:
+  docs-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate docs (CASA Standard §8)
+        env:
+          # PR: target branch; merge queue: group base; push: previous commit before push.
+          BASE:
+            ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) ||
+            github.event_name == 'merge_group' && github.event.merge_group.base_sha ||
+            github.event.before }}
+        run: |
+          if git rev-parse -q --verify "${BASE}^{commit}" >/dev/null; then
+            python3 scripts/docs-check --check-adr-immutability --base-ref "$BASE"
+          else
+            echo "::warning::no comparable base ('${BASE}': initial push or force-push) — ADR immutability NOT verified on this event"
+            python3 scripts/docs-check
+          fi

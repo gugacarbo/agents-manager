@@ -1,0 +1,69 @@
+version: "0.2"
+language: en,pt_BR
+import:
+  - "@cspell/dict-pt-br/cspell-ext.json"
+useGitignore: true
+ignorePaths:
+  - target/**
+  - src-tauri/target/**
+  - src-tauri/gen/**
+  - src/bindings/**
+  - docs/templates/**
+  - .agents/**
+  - .claude/**
+  - scripts/**
+  - CLAUDE.md
+  - bun.lock
+  - Cargo.lock
+  - dist/**
+  - playwright-report/**
+  - node_modules/**
+words:
+  - claude
+  - dtolnay
+  - gemini
+  - github
+  - swatinem
+  - taiki
+  - tauri
+  - specta
+  - codex
+  - antigravity
+  - mcps
+  - toml
+  - jsonc
+  - symlinks
+  - clippy
+  - rustfmt
+  - gitleaks
+  - commitlint
+  - biomejs
+  - knip
+  - cspell
+  - vitest
+  - jsdom
+  - machete
+  - webkit
+  - libwebkit
+  - libsoup
+  - libayatana
+  - gtk
+  - librsvg
+  - libxdo
+  - ayatana
+  - appindicator
+  - thiserror
+  - tempfile
+  - frontmatter
+  - sarif
+  - bunx
+  - resolute
+  - agentsmanager
+  - tanstack
+  - tailwindcss
+  - vite
+  - rustup
+  - rustsec
+  - opensource
+  - dev
+  - dotenv

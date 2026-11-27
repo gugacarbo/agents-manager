@@ -1,0 +1,3 @@
+gitleaks git --pre-commit --staged --redact --verbose
+python3 scripts/docs-check --staged
+bunx lint-staged

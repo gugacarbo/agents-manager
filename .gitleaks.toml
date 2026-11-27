@@ -1,0 +1,13 @@
+title = "agents-manager gitleaks configuration"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Allowlist lockfiles and gitignored build/dependency artifacts only"
+paths = [
+  '''(^|/)bun\.lockb?$''',
+  '''(^|/)Cargo\.lock$''',
+  '''(^|/)pnpm-lock\.yaml$''',
+  '''^(target|src-tauri/target|node_modules|dist)(/|$)''',
+]
