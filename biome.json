@@ -4,7 +4,9 @@
 		"includes": [
 			"**/src/**/*",
 			"**/tests/**/*",
+			"**/scripts/**/*.ts",
 			"**/.storybook/**/*",
+			"**/.lintstagedrc.js",
 			"**/*.config.ts",
 			"**/index.html",
 			"!**/dist",
@@ -71,6 +73,16 @@
 					},
 					"suspicious": {
 						"noThenProperty": "off",
+						"noConsole": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["**/scripts/**/*.ts", "**/.lintstagedrc.js"],
+			"linter": {
+				"rules": {
+					"suspicious": {
 						"noConsole": "off"
 					}
 				}

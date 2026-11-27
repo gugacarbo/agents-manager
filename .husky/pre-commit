@@ -1,3 +1,2 @@
-gitleaks git --pre-commit --staged --redact --verbose
-python3 scripts/docs-check --staged
-bunx lint-staged
+#!/usr/bin/env sh
+exec "$(git rev-parse --show-toplevel)/scripts/pre-commit"

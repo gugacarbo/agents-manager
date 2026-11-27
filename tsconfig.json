@@ -17,9 +17,11 @@
 	"include": [
 		"src",
 		"tests",
+		"scripts",
 		".storybook",
 		"vite.config.ts",
 		"vitest.config.ts",
+		"vitest.storybook.config.ts",
 		"playwright.config.ts"
 	]
 }

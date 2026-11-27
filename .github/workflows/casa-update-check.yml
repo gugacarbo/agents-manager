@@ -1,0 +1,23 @@
+name: CASA Update Check
+
+on:
+  schedule:
+    - cron: "17 9 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  casa-update-check:
+    name: Check CASA contract version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check upstream CASA contract
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: sh scripts/casa-update-check

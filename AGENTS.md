@@ -44,13 +44,16 @@ bun run storybook # catálogo de componentes Storybook (http://localhost:6006)
 ```bash
 python3 scripts/docs-check # exit 0 — CASA gate (STANDARD §8)
 bun run check              # exit 0 — Biome + tsc --noEmit + cargo fmt --check + cargo clippy
+bun run check:guards       # exit 0 — guardrails de arquitetura, UI, tokens e TanStack
 bun run format:check       # exit 0 — Prettier em md/yml/yaml/sh
 bun run spell              # exit 0 — CSpell (en, pt_BR)
 bun run knip               # exit 0 — detecção de código/deps não usados
 bun run test               # exit 0 — Vitest + cargo test --workspace em paralelo
+bun run test:storybook     # exit 0 — stories do Storybook no Chromium (Vitest Browser)
 bun run build:web          # exit 0 — Vite production build
 bun run build-storybook    # exit 0 — Storybook static build
 bun run test:e2e           # exit 0 — Playwright E2E (Chromium)
+bun run validate:fast      # exit 0 — gate rápido executado no pre-push
 ```
 
 ## How to deploy
@@ -62,8 +65,9 @@ bun run test:e2e           # exit 0 — Playwright E2E (Chromium)
 ## Git & PRs
 
 - Commits seguem **Conventional Commits** validados por Commitlint (`.husky/commit-msg`).
-- O hook `.husky/pre-commit` executa Gitleaks (`--staged`), `python3 scripts/docs-check` e
-  `lint-staged`.
+- O hook `.husky/pre-commit` executa `git diff --check`, `scripts/docs-check --staged` (com
+  regeneração automática de índices quando há ADR/Spec em stage), Gitleaks e `lint-staged`.
+- O hook `.husky/pre-push` executa `bun run validate:fast` sobre os commits não enviados.
 - Não execute `git commit`, `git push` nem abra PRs sem solicitação explícita.
 
 ## Gotchas

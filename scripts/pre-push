@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+current_step="initialization"
+on_err() {
+	local exit_code=$?
+	echo "pre-push failed at step: ${current_step} (exit ${exit_code})" >&2
+	exit "$exit_code"
+}
+trap on_err ERR
+
+top="$(git rev-parse --show-toplevel)"
+cd "$top"
+
+current_step="git diff --check"
+git diff --check
+
+changed_base() {
+	if git rev-parse --verify --quiet '@{upstream}' >/dev/null 2>&1; then
+		printf '%s\n' '@{upstream}'
+	elif git rev-parse --verify --quiet 'origin/main' >/dev/null 2>&1; then
+		printf '%s\n' 'origin/main'
+	else
+		printf '%s\n' 'HEAD'
+	fi
+}
+
+current_step="validate:fast"
+base="$(changed_base)"
+VALIDATE_CHANGED_BASE="$base" bun run validate:fast

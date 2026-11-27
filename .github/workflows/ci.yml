@@ -37,6 +37,9 @@ jobs:
       - name: Unused code check (Knip)
         run: bun run knip
 
+      - name: Guardrails check
+        run: bun run check:guards
+
       - name: TypeScript typecheck
         run: bun run typecheck
 
@@ -66,6 +69,9 @@ jobs:
 
       - name: Run Playwright E2E tests
         run: bun run test:e2e
+
+      - name: Run Storybook Chromium tests
+        run: bun run test:storybook
 
   rust:
     name: Rust

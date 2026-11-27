@@ -51,13 +51,17 @@ bun run build
 ```bash
 python3 scripts/docs-check # CASA documentation and governance checks
 bun run check              # Biome + tsc --noEmit + cargo fmt --check + cargo clippy
+bun run check:guards       # Architecture, UI style-drift, story coverage, and TanStack guards
 bun run format:check       # Prettier on Markdown, YAML, and shell scripts
 bun run spell              # CSpell (en, pt_BR)
 bun run knip               # Unused files, exports, and dependencies
 bun run test               # Vitest + cargo test --workspace (parallel)
+bun run test:storybook     # Storybook stories in headless Chromium via Vitest Browser
 bun run build:web          # Vite production build
 bun run build-storybook    # Storybook static build
 bun run test:e2e           # Playwright E2E tests (Chromium)
+bun run validate:fast      # Fast pre-push validation gate
+bun run validate           # Full local validation suite
 ```
 
 ## License

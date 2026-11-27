@@ -2,5 +2,9 @@
 	"$schema": "https://unpkg.com/knip@6/schema.json",
 	"project": ["src/**/*.{ts,tsx}"],
 	"ignore": ["src/bindings/**"],
-	"ignoreBinaries": ["rustfmt"]
+	"ignoreDependencies": [
+		"@tanstack/react-form",
+		"@tanstack/react-table",
+		"lint-staged"
+	]
 }

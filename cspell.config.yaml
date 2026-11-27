@@ -15,6 +15,9 @@ ignorePaths:
   - docs/BACKLOG.md
   - .agents/**
   - .claude/**
+  - .impeccable/**
+  - docs/UI-PLAN.md
+  - PRODUCT.md
   - scripts/**
   - CLAUDE.md
   - bun.lock
@@ -36,6 +39,7 @@ words:
   - gpui
   - gugacarbo
   - keymap
+  - lintstagedrc
   - lucide
   - modelcontextprotocol
   - serde
