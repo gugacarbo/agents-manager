@@ -12,6 +12,9 @@ export default defineConfig({
 		tailwindcss(),
 		storybookTest({ configDir: path.join(dirname, ".storybook") }),
 	],
+	optimizeDeps: {
+		include: ["@tauri-apps/api/mocks", "@tauri-apps/api/window", "sonner"],
+	},
 	resolve: {
 		alias: {
 			"@": path.join(dirname, "src"),

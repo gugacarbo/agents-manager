@@ -22,6 +22,7 @@ import {
 	Terminal,
 	Users,
 } from "lucide-react";
+import { DesktopTitleBar } from "@/components/desktop-title-bar";
 import {
 	RouteErrorFallback,
 	RouteNotFoundFallback,
@@ -67,7 +68,7 @@ function RootLayout() {
 		? ([
 				...navigation,
 				{ to: "/rules", label: "Rules", icon: FileText },
-				{ to: "/accounts/claude", label: "Claude accounts", icon: Users },
+				{ to: "/accounts/claude", label: "Claude Code accounts", icon: Users },
 			] as const)
 		: ([
 				...navigation,
@@ -79,7 +80,10 @@ function RootLayout() {
 
 	return (
 		<ThemeProvider>
-			<div className="workspace-shell min-h-screen md:grid">
+			<div
+				className="workspace-shell min-h-screen pt-(--title-bar-height) md:grid"
+				data-desktop={desktop}
+			>
 				<Button
 					type="button"
 					className="sr-only z-20 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
@@ -89,7 +93,8 @@ function RootLayout() {
 				>
 					Skip to content
 				</Button>
-				<aside className="flex flex-col border-b border-border bg-sidebar md:sticky md:top-0 md:h-screen md:overflow-y-auto md:border-r md:border-b-0">
+				{desktop ? <DesktopTitleBar /> : null}
+				<aside className="flex flex-col border-b border-border bg-sidebar md:sticky md:top-(--title-bar-height) md:h-(--workspace-sidebar-height) md:overflow-y-auto md:border-r md:border-b-0">
 					<div className="flex min-h-16 items-center gap-3 px-4 md:px-5">
 						<span className="grid size-8 shrink-0 place-items-center rounded-md bg-primary text-primary-foreground">
 							<Terminal className="size-4.5" aria-hidden="true" />

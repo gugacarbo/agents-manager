@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
+import { clearMocks, mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import {
 	cleanup,
 	fireEvent,
 	render,
 	screen,
+	waitFor,
 	within,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -91,9 +92,69 @@ describe("agentSummarySchema", () => {
 });
 
 describe("App", () => {
+	it("rounds only the restored desktop window as its native state changes", async () => {
+		let maximized = false;
+		let fullscreen = false;
+		mockWindows("main");
+		mockIPC((command) => {
+			if (command === "plugin:window|is_maximized") return maximized;
+			if (command === "plugin:window|is_fullscreen") return fullscreen;
+			return [];
+		});
+		renderApp();
+
+		const frame = document.documentElement;
+		const className = "desktop-window-rounded";
+		await waitFor(() => expect(frame).toHaveClass(className));
+
+		maximized = true;
+		fireEvent.resize(window);
+		await waitFor(() => expect(frame).not.toHaveClass(className));
+
+		maximized = false;
+		fireEvent.resize(window);
+		await waitFor(() => expect(frame).toHaveClass(className));
+
+		fullscreen = true;
+		fireEvent.resize(window);
+		await waitFor(() => expect(frame).not.toHaveClass(className));
+
+		fullscreen = false;
+		fireEvent.resize(window);
+		await waitFor(() => expect(frame).toHaveClass(className));
+	});
+
+	it.each([
+		["Minimize window", "minimize"],
+		["Maximize or restore window", "toggle_maximize"],
+		["Close window", "close"],
+	])("routes %s to the current desktop window", async (name, command) => {
+		const windowCommands: unknown[][] = [];
+		mockWindows("main");
+		mockIPC((cmd, args) => {
+			if (/^plugin:window\|(minimize|toggle_maximize|close)$/.test(cmd)) {
+				windowCommands.push([cmd, args]);
+			}
+			return [];
+		});
+		renderApp();
+
+		const controls = await screen.findByRole("group", {
+			name: "Window controls",
+		});
+		fireEvent.click(within(controls).getByRole("button", { name }));
+
+		expect(windowCommands).toEqual([
+			[`plugin:window|${command}`, { label: "main" }],
+		]);
+	});
+
 	it("lists each supported agent once when no configurations are detected", async () => {
 		renderApp();
 		const list = await screen.findByRole("list", { name: "Agent inventory" });
+		expect(
+			screen.queryByRole("group", { name: "Window controls" }),
+		).not.toBeInTheDocument();
 		expect(within(list).getAllByRole("listitem")).toHaveLength(3);
 		for (const name of ["Claude Code", "Codex", "Antigravity"]) {
 			expect(screen.getAllByText(name, { exact: true })).toHaveLength(1);
