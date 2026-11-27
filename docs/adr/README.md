@@ -14,5 +14,5 @@
 | [ADR-0008](0008-isolar-a-autenticacao-do-claude-code-por-perfil.md) | Isolar a autenticação do Claude Code por perfil | accepted |
 | [ADR-0009](0009-consultar-a-cota-da-conta-ativa-do-claude-desktop.md) | Consultar cotas de contas do Claude Desktop por perfil isolado | accepted |
 | [ADR-0010](0010-sincronizar-configuracoes-do-claude-desktop-por-projecao-explicita.md) | Sincronizar configurações do Claude Desktop por projeção explícita | proposed |
-| [ADR-0011](0011-importar-sessoes-do-claude-code-entre-perfis-do-desktop.md) | Importar sessões do Claude Code entre perfis do Desktop | proposed |
+| [ADR-0011](0011-importar-sessoes-do-claude-code-entre-perfis-do-desktop.md) | Importar sessões do Claude Code entre perfis do Desktop | accepted |
 | [ADR-0012](0012-separar-infraestrutura-ssh-e-contas-claude-em-crates-dedicados.md) | Separar infraestrutura SSH e contas Claude em crates dedicados | proposed |

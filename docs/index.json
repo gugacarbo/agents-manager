@@ -133,7 +133,7 @@
     "path": "docs/adr/0011-importar-sessoes-do-claude-code-entre-perfis-do-desktop.md",
     "layer": "adr",
     "title": "Importar sessões do Claude Code entre perfis do Desktop",
-    "status": "proposed",
+    "status": "accepted",
     "builds-on": [
       "ADR-0004",
       "ADR-0006",
@@ -279,7 +279,7 @@
     "path": "docs/specs/0009-importar-conversas-locais-e-ssh-ao-trocar-contas-do-claude-desktop.md",
     "layer": "specs",
     "title": "Importar conversas locais e SSH ao trocar contas do Claude Desktop",
-    "status": "draft",
+    "status": "accepted",
     "builds-on": [
       "ADR-0011",
       "SPEC-0008"
