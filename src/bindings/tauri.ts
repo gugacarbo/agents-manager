@@ -25,9 +25,41 @@ export const commands = {
 	unlinkSync: (itemId: string, targetPath: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("unlink_sync", { itemId, targetPath }, options),
 	previewSync: (request: SyncPreviewRequest_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<SyncPreviewItem_Serialize[]>("preview_sync", { request }, options),
 	applySync: (request: SyncApplyRequest_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<SyncApplyResult_Serialize[]>("apply_sync", { request }, options),
+	listSshEnvironments: (options?: InvokeOptions) => __TAURI_INVOKE<SshEnvironment[]>("list_ssh_environments", undefined, options),
+	saveSshEnvironment: (id: string | null, draft: SshEnvironmentDraft, options?: InvokeOptions) => __TAURI_INVOKE<SshEnvironment>("save_ssh_environment", { id, draft }, options),
+	removeSshEnvironment: (id: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("remove_ssh_environment", { id }, options),
+	testSshConnection: (draft: SshEnvironmentDraft, options?: InvokeOptions) => __TAURI_INVOKE<SshInventory>("test_ssh_connection", { draft }, options),
+	inspectSshEnvironment: (id: string, options?: InvokeOptions) => __TAURI_INVOKE<SshInventory>("inspect_ssh_environment", { id }, options),
+	listRemoteConfigFiles: (environmentId: string, agent: AgentKind, options?: InvokeOptions) => __TAURI_INVOKE<RemoteConfigEntry[]>("list_remote_config_files", { environmentId, agent }, options),
+	openRemoteConfig: (environmentId: string, fileId: RemoteConfigId, options?: InvokeOptions) => __TAURI_INVOKE<RemoteOpenResult>("open_remote_config", { environmentId, fileId }, options),
+	reviewRemoteConfig: (handle: string, content: string, options?: InvokeOptions) => __TAURI_INVOKE<RemoteReviewResult>("review_remote_config", { handle, content }, options),
+	saveRemoteConfig: (reviewId: string, confirmed: boolean, options?: InvokeOptions) => __TAURI_INVOKE<RemoteSaveResult>("save_remote_config", { reviewId, confirmed }, options),
+	verifyRemoteConfig: (handle: string, options?: InvokeOptions) => __TAURI_INVOKE<RemoteOpenResult>("verify_remote_config", { handle }, options),
+	listClaudeAccounts: (options?: InvokeOptions) => __TAURI_INVOKE<ClaudeAccount[]>("list_claude_accounts", undefined, options),
+	createClaudeAccount: (displayName: string, options?: InvokeOptions) => __TAURI_INVOKE<ClaudeAccount>("create_claude_account", { displayName }, options),
+	startClaudeAccountLogin: (profileId: string, options?: InvokeOptions) => __TAURI_INVOKE<AccountStatus_Serialize>("start_claude_account_login", { profileId }, options),
+	getClaudeAccountStatus: (profileId: string, options?: InvokeOptions) => __TAURI_INVOKE<AccountStatus_Serialize>("get_claude_account_status", { profileId }, options),
 };
 
 /* Types */
+export type AccountError = "invalidDisplayName" | "profileNotFound" | "storageUnavailable" | "cliUnavailable" | "statusTimeout" | "statusInvalid" | "terminalUnavailable" | "loginFailed";
+
+export type AccountState = "pending" | "connected" | "disconnected" | "verificationFailed";
+
+export type AccountStatus = AccountStatus_Serialize | AccountStatus_Deserialize;
+
+export type AccountStatus_Deserialize = {
+	profileId: string,
+	state: AccountState,
+	errorCode?: AccountError | null,
+};
+
+export type AccountStatus_Serialize = {
+	profileId: string,
+	state: AccountState,
+	errorCode?: AccountError,
+};
+
 /**  Supported coding agent backends. */
 export type AgentKind = "claude-code" | "codex" | "antigravity";
 
@@ -48,6 +80,11 @@ export type AgentSummary_Serialize = {
 	name: string,
 	detected: boolean,
 	configPath: string | null,
+};
+
+export type ClaudeAccount = {
+	id: string,
+	displayName: string,
 };
 
 export type ConfigCategory = "mcps" | "skills" | "rules" | "settings";
@@ -74,34 +111,37 @@ export type ConfigFormat = "json" | "toml" | "markdown";
 export type ConfigScope = "global" | "project";
 
 /**  Domain-level errors produced by `agents-manager-core`. */
-export type CoreError = "SecretConfirmationRequired" | ({ DuplicateProject: {
+export type CoreError = "RemoteDestinationChanged" | "RemoteUnconfirmed" | "ProtectedField" | ({ SshError: {
+	kind: SshErrorKind,
+	message: string,
+} }) & { DuplicateProject?: never; InvalidPath?: never; Io?: never; IoError?: never; NotFound?: never; PathNotAllowed?: never; PermissionDenied?: never; Serialization?: never; SyntaxError?: never } | "SecretConfirmationRequired" | ({ DuplicateProject: {
 	id: string,
 	root_path: string,
-} }) & { InvalidPath?: never; Io?: never; IoError?: never; NotFound?: never; PathNotAllowed?: never; PermissionDenied?: never; Serialization?: never; SyntaxError?: never } | ({ PermissionDenied: {
+} }) & { InvalidPath?: never; Io?: never; IoError?: never; NotFound?: never; PathNotAllowed?: never; PermissionDenied?: never; Serialization?: never; SshError?: never; SyntaxError?: never } | ({ PermissionDenied: {
 	message: string,
-} }) & { DuplicateProject?: never; InvalidPath?: never; Io?: never; IoError?: never; NotFound?: never; PathNotAllowed?: never; Serialization?: never; SyntaxError?: never } | ({ PathNotAllowed: {
+} }) & { DuplicateProject?: never; InvalidPath?: never; Io?: never; IoError?: never; NotFound?: never; PathNotAllowed?: never; Serialization?: never; SshError?: never; SyntaxError?: never } | ({ PathNotAllowed: {
 	path: string,
-} }) & { DuplicateProject?: never; InvalidPath?: never; Io?: never; IoError?: never; NotFound?: never; PermissionDenied?: never; Serialization?: never; SyntaxError?: never } | ({ SyntaxError: {
+} }) & { DuplicateProject?: never; InvalidPath?: never; Io?: never; IoError?: never; NotFound?: never; PermissionDenied?: never; Serialization?: never; SshError?: never; SyntaxError?: never } | ({ SyntaxError: {
 	message: string,
-} }) & { DuplicateProject?: never; InvalidPath?: never; Io?: never; IoError?: never; NotFound?: never; PathNotAllowed?: never; PermissionDenied?: never; Serialization?: never } | "ExternalConflict" | ({ IoError: {
+} }) & { DuplicateProject?: never; InvalidPath?: never; Io?: never; IoError?: never; NotFound?: never; PathNotAllowed?: never; PermissionDenied?: never; Serialization?: never; SshError?: never } | "ExternalConflict" | ({ IoError: {
 	message: string,
-} }) & { DuplicateProject?: never; InvalidPath?: never; Io?: never; NotFound?: never; PathNotAllowed?: never; PermissionDenied?: never; Serialization?: never; SyntaxError?: never } |
+} }) & { DuplicateProject?: never; InvalidPath?: never; Io?: never; NotFound?: never; PathNotAllowed?: never; PermissionDenied?: never; Serialization?: never; SshError?: never; SyntaxError?: never } |
 /**  Filesystem or I/O operation failure. */
 ({ Io: {
 	message: string,
-} }) & { DuplicateProject?: never; InvalidPath?: never; IoError?: never; NotFound?: never; PathNotAllowed?: never; PermissionDenied?: never; Serialization?: never; SyntaxError?: never } |
+} }) & { DuplicateProject?: never; InvalidPath?: never; IoError?: never; NotFound?: never; PathNotAllowed?: never; PermissionDenied?: never; Serialization?: never; SshError?: never; SyntaxError?: never } |
 /**  Serialization or deserialization failure. */
 ({ Serialization: {
 	message: string,
-} }) & { DuplicateProject?: never; InvalidPath?: never; Io?: never; IoError?: never; NotFound?: never; PathNotAllowed?: never; PermissionDenied?: never; SyntaxError?: never } |
+} }) & { DuplicateProject?: never; InvalidPath?: never; Io?: never; IoError?: never; NotFound?: never; PathNotAllowed?: never; PermissionDenied?: never; SshError?: never; SyntaxError?: never } |
 /**  Invalid or inaccessible filesystem path. */
 ({ InvalidPath: {
 	path: string,
-} }) & { DuplicateProject?: never; Io?: never; IoError?: never; NotFound?: never; PathNotAllowed?: never; PermissionDenied?: never; Serialization?: never; SyntaxError?: never } |
+} }) & { DuplicateProject?: never; Io?: never; IoError?: never; NotFound?: never; PathNotAllowed?: never; PermissionDenied?: never; Serialization?: never; SshError?: never; SyntaxError?: never } |
 /**  Expected resource was not found. */
 ({ NotFound: {
 	target: string,
-} }) & { DuplicateProject?: never; InvalidPath?: never; Io?: never; IoError?: never; PathNotAllowed?: never; PermissionDenied?: never; Serialization?: never; SyntaxError?: never };
+} }) & { DuplicateProject?: never; InvalidPath?: never; Io?: never; IoError?: never; PathNotAllowed?: never; PermissionDenied?: never; Serialization?: never; SshError?: never; SyntaxError?: never };
 
 export type LibraryItem = LibraryItem_Serialize | LibraryItem_Deserialize;
 
@@ -183,6 +223,44 @@ export type PromoteLibraryRequest_Serialize = {
 	confirmLiteralSecrets: boolean | null,
 };
 
+export type RemoteConfigEntry = {
+	id: RemoteConfigId,
+	agent: AgentKind,
+	label: string,
+	format: ConfigFormat,
+};
+
+export type RemoteConfigId = "claude-settings" | "claude-home" | "claude-nested" | "codex-config";
+
+export type RemoteOpenResult = {
+	handle: string,
+	entry: RemoteConfigEntry,
+	host: string,
+	user: string,
+	port: number,
+	path: string,
+	content: string,
+	sha256: string,
+	secretSpans: SecretSpan[],
+};
+
+export type RemoteReviewResult = {
+	reviewId: string,
+	host: string,
+	user: string,
+	port: number,
+	path: string,
+	originalContent: string,
+	proposedContent: string,
+	originalSecretSpans: SecretSpan[],
+	proposedSecretSpans: SecretSpan[],
+};
+
+export type RemoteSaveResult = {
+	sha256: string,
+	backupPath: string,
+};
+
 export type SaveConfigRequest = SaveConfigRequest_Serialize | SaveConfigRequest_Deserialize;
 
 export type SaveConfigRequest_Deserialize = {
@@ -226,6 +304,29 @@ export type SecretSpan = {
 	startByte: number,
 	endByte: number,
 	kind: string,
+};
+
+export type SshConnection = { mode: "alias"; alias: string } | { mode: "manual"; host: string; user: string; port: number };
+
+export type SshEnvironment = {
+	id: string,
+	name: string,
+	connection: SshConnection,
+};
+
+export type SshEnvironmentDraft = {
+	name: string,
+	connection: SshConnection,
+};
+
+export type SshErrorKind = "invalid-input" | "client-unavailable" | "authentication" | "host-key" | "timeout" | "connection" | "protocol";
+
+export type SshInventory = {
+	host: string,
+	user: string,
+	port: number,
+	claude: boolean,
+	codex: boolean,
 };
 
 export type StructuredPreviewResult = {

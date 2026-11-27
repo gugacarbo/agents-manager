@@ -28,14 +28,17 @@ for (const width of [1200, 900]) {
 		await page.addInitScript((path) => {
 			Object.defineProperty(window, "__TAURI_INTERNALS__", {
 				value: {
-					invoke: async () => [
-						{
-							kind: "claude-code",
-							name: "Claude Code",
-							detected: true,
-							configPath: path,
-						},
-					],
+					invoke: async (command: string) =>
+						command === "list_ssh_environments"
+							? []
+							: [
+									{
+										kind: "claude-code",
+										name: "Claude Code",
+										detected: true,
+										configPath: path,
+									},
+								],
 				},
 			});
 		}, configPath);

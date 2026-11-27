@@ -80,7 +80,25 @@
     "layer": "adr",
     "title": "Separar a escrita remota segura da persistência local",
     "status": "proposed",
-    "builds-on": [],
+    "builds-on": [
+      "ADR-0004",
+      "ADR-0005",
+      "ADR-0006"
+    ],
+    "superseded-by": null,
+    "implemented-by": []
+  },
+  {
+    "id": "ADR-0008",
+    "path": "docs/adr/0008-isolar-a-autenticacao-do-claude-code-por-perfil.md",
+    "layer": "adr",
+    "title": "Isolar a autenticação do Claude Code por perfil",
+    "status": "accepted",
+    "builds-on": [
+      "ADR-0001",
+      "ADR-0004",
+      "ADR-0005"
+    ],
     "superseded-by": null,
     "implemented-by": []
   },
@@ -136,22 +154,54 @@
     "design-ref": "docs/UI-PLAN.md"
   },
   {
-    "id": "SPEC-0005",
-    "path": "docs/specs/0005-cadastrar-e-inspecionar-ambientes-ssh.md",
+    "id": "SPEC-0004",
+    "path": "docs/specs/0004-cadastrar-e-inspecionar-ambientes-ssh.md",
     "layer": "specs",
     "title": "Cadastrar e inspecionar ambientes SSH",
-    "status": "draft",
-    "builds-on": [],
+    "status": "accepted",
+    "builds-on": [
+      "ADR-0006"
+    ],
+    "superseded-by": null,
+    "implemented-by": []
+  },
+  {
+    "id": "SPEC-0005",
+    "path": "docs/specs/0005-editar-configuracoes-globais-de-agentes-via-ssh.md",
+    "layer": "specs",
+    "title": "Editar configurações globais de agentes via SSH",
+    "status": "accepted",
+    "builds-on": [
+      "ADR-0004",
+      "ADR-0005",
+      "ADR-0006",
+      "ADR-0007",
+      "SPEC-0004"
+    ],
     "superseded-by": null,
     "implemented-by": []
   },
   {
     "id": "SPEC-0006",
-    "path": "docs/specs/0006-editar-configuracoes-globais-de-agentes-via-ssh.md",
+    "path": "docs/specs/0006-cadastrar-contas-do-claude-code-em-perfis-isolados.md",
     "layer": "specs",
-    "title": "Editar configurações globais de agentes via SSH",
+    "title": "Cadastrar contas do Claude Code em perfis isolados",
+    "status": "accepted",
+    "builds-on": [
+      "ADR-0008"
+    ],
+    "superseded-by": null,
+    "implemented-by": []
+  },
+  {
+    "id": "SPEC-0007",
+    "path": "docs/specs/0007-monitorar-cotas-por-conta-do-claude-code.md",
+    "layer": "specs",
+    "title": "Monitorar cotas por conta do Claude Code",
     "status": "draft",
-    "builds-on": [],
+    "builds-on": [
+      "ADR-0008"
+    ],
     "superseded-by": null,
     "implemented-by": []
   }

@@ -22,6 +22,8 @@ for (const width of [1200, 900]) {
 						args?: { request: { content: string; expectedSha256: string } },
 					) => {
 						switch (command) {
+							case "list_ssh_environments":
+								return [];
 							case "list_agents":
 								return [
 									{

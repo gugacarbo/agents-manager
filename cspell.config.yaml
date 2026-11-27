@@ -46,6 +46,7 @@ words:
   - noninteractive
   - serde
   - serialização
+  - reserializar
   - shadcn
   - slint
   - sonner

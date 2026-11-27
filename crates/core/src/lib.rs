@@ -1,8 +1,12 @@
+#[cfg(target_os = "linux")]
+pub mod claude_accounts;
 pub mod config;
 pub mod domain;
 pub mod error;
 pub mod library;
 pub mod projects;
+pub mod remote_config;
+pub mod ssh;
 pub mod structured;
 
 use std::path::Path;

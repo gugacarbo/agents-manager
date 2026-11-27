@@ -94,8 +94,6 @@ segredos literais.
 
 ## Out of scope
 
-- **`SPEC-0004` — Histórico de Backups, Restauração e Busca Unificada:** visualização e restauração
-  de snapshots rotacionados e busca global via Command Palette (`Ctrl+K`).
 - **Fora da v1:** sincronização remota em nuvem ou push automático em Git, suporte/empacotamento
   para macOS e Windows, tradução/i18n da UI para pt-BR e regressão visual por screenshots.
 

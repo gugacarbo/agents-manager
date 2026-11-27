@@ -1,6 +1,11 @@
 use std::{env, fs, path::Path, process::Command};
 
-use tauri::{WebviewWindowBuilder, ipc::InvokeResponseBody, test, webview::InvokeRequest};
+use tauri::{
+    WebviewWindowBuilder,
+    ipc::{InvokeBody, InvokeResponseBody},
+    test,
+    webview::InvokeRequest,
+};
 use tempfile::tempdir;
 
 use super::{specta_builder, with_ipc_handler};
@@ -74,6 +79,25 @@ fn assert_list_agents_response(home: &Path) {
     let InvokeResponseBody::Json(json) = response else {
         panic!("expected a JSON IPC response, got {response:?}");
     };
+    let invalid_draft = tauri::utils::config::parse::parse_json_value(
+        r#"{"draft":{"name":"test","connection":{"mode":"alias","alias":"-bad"}}}"#,
+        Path::new("test_ssh_connection IPC"),
+    )
+    .expect("parse SSH request");
+    let error = test::get_ipc_response(
+        &webview,
+        InvokeRequest {
+            cmd: "test_ssh_connection".into(),
+            callback: tauri::ipc::CallbackFn(0),
+            error: tauri::ipc::CallbackFn(1),
+            url: webview.url().expect("webview URL"),
+            body: InvokeBody::Json(invalid_draft),
+            headers: Default::default(),
+            invoke_key: test::INVOKE_KEY.into(),
+        },
+    )
+    .expect_err("invalid SSH destination must fail over IPC");
+    assert_eq!(error["SshError"]["kind"], "invalid-input");
     // Read the wire keys and values independently of AgentSummary's serde rules.
     let payload =
         tauri::utils::config::parse::parse_json_value(&json, Path::new("list_agents IPC"))

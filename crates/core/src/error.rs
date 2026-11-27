@@ -5,6 +5,17 @@ use thiserror::Error;
 /// Domain-level errors produced by `agents-manager-core`.
 #[derive(Debug, Clone, PartialEq, Eq, Error, Serialize, Deserialize, Type)]
 pub enum CoreError {
+    #[error("remote destination changed")]
+    RemoteDestinationChanged,
+    #[error("remote save could not be confirmed")]
+    RemoteUnconfirmed,
+    #[error("project data cannot be modified")]
+    ProtectedField,
+    #[error("SSH error: {message}")]
+    SshError {
+        kind: crate::domain::SshErrorKind,
+        message: String,
+    },
     #[error("literal secret confirmation required")]
     SecretConfirmationRequired,
     #[error("project already registered: {root_path}")]

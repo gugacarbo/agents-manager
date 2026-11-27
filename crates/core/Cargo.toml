@@ -22,3 +22,6 @@ tempfile = "3"
 
 [dev-dependencies]
 tempfile = "3"
+
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.30", features = ["fs", "signal", "process", "user"] }

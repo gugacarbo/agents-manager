@@ -27,6 +27,8 @@ test("registers a project and previews a structured edit by keyboard", async ({
 				transformCallback: () => 1,
 				invoke: async (command: string, args: Record<string, unknown>) => {
 					switch (command) {
+						case "list_ssh_environments":
+							return [];
 						case "list_agents":
 							return [];
 						case "list_projects":

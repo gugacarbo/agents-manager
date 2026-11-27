@@ -15,6 +15,8 @@ test("reviews and applies a library sync", async ({ page }) => {
 				transformCallback: () => 1,
 				invoke: async (command: string, args: Record<string, unknown>) => {
 					switch (command) {
+						case "list_ssh_environments":
+							return [];
 						case "list_agents":
 							return [];
 						case "list_library_items":

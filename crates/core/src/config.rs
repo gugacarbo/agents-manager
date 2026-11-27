@@ -31,7 +31,7 @@ pub fn read_config(entry: ConfigFileEntry) -> Result<ConfigDocument, CoreError> 
     })
 }
 
-pub(crate) fn detect_secrets(content: &str) -> Vec<SecretSpan> {
+pub fn detect_secrets(content: &str) -> Vec<SecretSpan> {
     let Ok(assignments) = Regex::new(
         r#"(?i)["']?([a-z0-9_.-]+)["']?\s*[:=]\s*(?:"((?:\\.|[^"\\\r\n])*)"|'([^'\r\n]*)')"#,
     ) else {

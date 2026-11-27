@@ -1,3 +1,7 @@
+#[cfg(target_os = "linux")]
+pub mod claude_accounts;
+pub mod remote;
+
 use agents_manager_core::domain::AgentSummary;
 use agents_manager_core::error::CoreError;
 use directories::BaseDirs;
@@ -22,10 +26,14 @@ use agents_manager_core::domain::{
 };
 use std::{
     path::{Path, PathBuf},
-    sync::{Mutex, MutexGuard},
+    sync::{
+        Mutex, MutexGuard,
+        atomic::{AtomicU64, Ordering},
+    },
 };
 
 static REGISTRY_LOCK: Mutex<()> = Mutex::new(());
+static SSH_REVISION: AtomicU64 = AtomicU64::new(0);
 
 fn registry_lock() -> Result<MutexGuard<'static, ()>, CoreError> {
     REGISTRY_LOCK.lock().map_err(|err| CoreError::IoError {
@@ -58,7 +66,42 @@ pub(crate) fn authorized(path: &str) -> Result<ConfigFileEntry, CoreError> {
     authorized_in(&home()?, &registry()?, Path::new(path))
 }
 
+fn account_private_path(path: &Path) -> Result<bool, CoreError> {
+    #[cfg(target_os = "linux")]
+    {
+        Ok(agents_manager_core::claude_accounts::is_private_path(
+            &claude_accounts::private_store()?,
+            path,
+        ))
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = path;
+        Ok(false)
+    }
+}
+
+fn reject_account_path(path: &Path) -> Result<(), CoreError> {
+    if account_private_path(path)? {
+        return Err(CoreError::PathNotAllowed {
+            path: "private account storage".into(),
+        });
+    }
+    Ok(())
+}
+
+fn public_configs(entries: Vec<ConfigFileEntry>) -> Result<Vec<ConfigFileEntry>, CoreError> {
+    let mut public = Vec::with_capacity(entries.len());
+    for entry in entries {
+        if !account_private_path(Path::new(&entry.path))? {
+            public.push(entry);
+        }
+    }
+    Ok(public)
+}
+
 fn authorized_in(home: &Path, registry: &Path, path: &Path) -> Result<ConfigFileEntry, CoreError> {
+    reject_account_path(path)?;
     if let Some(entry) = agents_manager_adapters::allowed_config(home, path) {
         return Ok(entry);
     }
@@ -106,7 +149,7 @@ fn authorized_in(home: &Path, registry: &Path, path: &Path) -> Result<ConfigFile
 #[tauri::command]
 #[specta::specta]
 pub fn list_agent_configs(kind: AgentKind) -> Result<Vec<ConfigFileEntry>, CoreError> {
-    Ok(agents_manager_adapters::list_agent_configs(kind, &home()?))
+    public_configs(agents_manager_adapters::list_agent_configs(kind, &home()?))
 }
 
 #[tauri::command]
@@ -139,7 +182,9 @@ pub fn list_projects() -> Result<Vec<ProjectSummary>, CoreError> {
 #[specta::specta]
 pub fn register_project(root_path: String) -> Result<ProjectSummary, CoreError> {
     let _guard = registry_lock()?;
-    agents_manager_core::projects::register_project(&registry()?, Path::new(&root_path))
+    let root = Path::new(&root_path);
+    reject_account_path(root)?;
+    agents_manager_core::projects::register_project(&registry()?, root)
 }
 
 #[tauri::command]
@@ -167,10 +212,9 @@ pub fn list_project_configs(
     {
         return Ok(Vec::new());
     }
-    Ok(agents_manager_adapters::list_project_configs(
-        kind,
-        Path::new(&project.root_path),
-    ))
+    let root = Path::new(&project.root_path);
+    reject_account_path(root)?;
+    public_configs(agents_manager_adapters::list_project_configs(kind, root))
 }
 
 #[tauri::command]
@@ -259,7 +303,9 @@ pub fn delete_library_item(item_id: String) -> Result<(), CoreError> {
 #[specta::specta]
 pub fn unlink_sync(item_id: String, target_path: String) -> Result<(), CoreError> {
     let _guard = registry_lock()?;
-    agents_manager_core::library::unlink(&library_dir()?, &item_id, Path::new(&target_path))
+    let path = Path::new(&target_path);
+    reject_account_path(path)?;
+    agents_manager_core::library::unlink(&library_dir()?, &item_id, path)
 }
 
 fn resolve_targets(
@@ -295,6 +341,7 @@ fn resolve_targets(
                 });
             }
         };
+        reject_account_path(&root)?;
         let entry = agents_manager_adapters::resolve_sync_target(
             selection.agent,
             selection.scope,
@@ -305,6 +352,7 @@ fn resolve_targets(
         .ok_or_else(|| CoreError::InvalidPath {
             path: item.id.clone(),
         })?;
+        reject_account_path(Path::new(&entry.path))?;
         if !agents_manager_adapters::safe_sync_target(
             &root,
             Path::new(&entry.path),
@@ -400,6 +448,92 @@ pub fn apply_sync(
     )
 }
 
+fn ssh_registry() -> Result<PathBuf, CoreError> {
+    Ok(data_dir()?.join("ssh-environments.json"))
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_ssh_environments() -> Result<Vec<agents_manager_core::domain::SshEnvironment>, CoreError>
+{
+    let _guard = registry_lock()?;
+    agents_manager_core::ssh::list_environments(&ssh_registry()?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn save_ssh_environment(
+    id: Option<String>,
+    draft: agents_manager_core::domain::SshEnvironmentDraft,
+) -> Result<agents_manager_core::domain::SshEnvironment, CoreError> {
+    let _guard = registry_lock()?;
+    let result =
+        agents_manager_core::ssh::save_environment(&ssh_registry()?, id.as_deref(), &draft)?;
+    SSH_REVISION.fetch_add(1, Ordering::Relaxed);
+    Ok(result)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn remove_ssh_environment(id: String) -> Result<(), CoreError> {
+    let _guard = registry_lock()?;
+    agents_manager_core::ssh::remove_environment(&ssh_registry()?, &id)?;
+    SSH_REVISION.fetch_add(1, Ordering::Relaxed);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn test_ssh_connection(
+    draft: agents_manager_core::domain::SshEnvironmentDraft,
+) -> Result<agents_manager_core::domain::SshInventory, CoreError> {
+    tauri::async_runtime::spawn_blocking(move || agents_manager_core::ssh::inventory(&draft))
+        .await
+        .map_err(|err| CoreError::IoError {
+            message: err.to_string(),
+        })?
+}
+
+fn ssh_snapshot_unchanged(
+    registry: &Path,
+    snapshot: &agents_manager_core::domain::SshEnvironment,
+) -> Result<bool, CoreError> {
+    Ok(agents_manager_core::ssh::list_environments(registry)?
+        .into_iter()
+        .any(|entry| entry == *snapshot))
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn inspect_ssh_environment(
+    id: String,
+) -> Result<agents_manager_core::domain::SshInventory, CoreError> {
+    let (environment, revision) = {
+        let _guard = registry_lock()?;
+        let environment = agents_manager_core::ssh::list_environments(&ssh_registry()?)?
+            .into_iter()
+            .find(|entry| entry.id == id)
+            .ok_or_else(|| CoreError::NotFound { target: id.clone() })?;
+        (environment, SSH_REVISION.load(Ordering::Relaxed))
+    };
+    let draft = agents_manager_core::domain::SshEnvironmentDraft {
+        name: environment.name.clone(),
+        connection: environment.connection.clone(),
+    };
+    let result =
+        tauri::async_runtime::spawn_blocking(move || agents_manager_core::ssh::inventory(&draft))
+            .await
+            .map_err(|err| CoreError::IoError {
+                message: err.to_string(),
+            })?;
+    let _guard = registry_lock()?;
+    let unchanged = ssh_snapshot_unchanged(&ssh_registry()?, &environment)?;
+    if !unchanged || SSH_REVISION.load(Ordering::Relaxed) != revision {
+        return Err(CoreError::ExternalConflict);
+    }
+    result
+}
+
 #[derive(Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ConfigFileChanged {
@@ -459,5 +593,28 @@ mod tests {
             authorized_in(&home, &registry, &file),
             Err(CoreError::PathNotAllowed { .. })
         ));
+    }
+    #[test]
+    fn ssh_results_are_discarded_after_connection_change_or_removal() {
+        use agents_manager_core::domain::{SshConnection, SshEnvironmentDraft};
+        let temp = tempfile::tempdir().unwrap();
+        let registry = temp.path().join("ssh.json");
+        let draft = SshEnvironmentDraft {
+            name: "test".into(),
+            connection: SshConnection::Alias {
+                alias: "host".into(),
+            },
+        };
+        let original = agents_manager_core::ssh::save_environment(&registry, None, &draft).unwrap();
+        assert!(ssh_snapshot_unchanged(&registry, &original).unwrap());
+        let updated = SshEnvironmentDraft {
+            name: "changed".into(),
+            ..draft
+        };
+        agents_manager_core::ssh::save_environment(&registry, Some(&original.id), &updated)
+            .unwrap();
+        assert!(!ssh_snapshot_unchanged(&registry, &original).unwrap());
+        agents_manager_core::ssh::remove_environment(&registry, &original.id).unwrap();
+        assert!(!ssh_snapshot_unchanged(&registry, &original).unwrap());
     }
 }

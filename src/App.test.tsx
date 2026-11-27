@@ -170,7 +170,8 @@ describe("App", () => {
 
 	it("retries the first failed detection without presenting it as zero detections", async () => {
 		let fail = true;
-		mockIPC(() => {
+		mockIPC((command) => {
+			if (command === "list_ssh_environments") return [];
 			if (fail) throw { NotFound: { target: "user home directory" } };
 			return [
 				{ kind: "codex", name: "Codex", detected: false, configPath: null },
@@ -194,7 +195,8 @@ describe("App", () => {
 			rejectRefresh = reject;
 		});
 		let firstCall = true;
-		mockIPC(() => {
+		mockIPC((command) => {
+			if (command === "list_ssh_environments") return [];
 			if (!firstCall) return refresh;
 			firstCall = false;
 			return [

@@ -7,5 +7,7 @@
 | [SPEC-0001](0001-global-agent-config-inspection-and-safe-editing.md) | Inspecionar e editar configurações globais dos agentes com escrita segura | accepted |
 | [SPEC-0002](0002-project-scope-and-structured-config-editors.md) | Gerenciar configurações por projeto e editores estruturados de MCPs e Settings | accepted |
 | [SPEC-0003](0003-shared-library-and-agent-sync.md) | Gerenciar biblioteca compartilhada opcional e sincronizar configurações entre agentes | accepted |
-| [SPEC-0005](0005-cadastrar-e-inspecionar-ambientes-ssh.md) | Cadastrar e inspecionar ambientes SSH | draft |
-| [SPEC-0006](0006-editar-configuracoes-globais-de-agentes-via-ssh.md) | Editar configurações globais de agentes via SSH | draft |
+| [SPEC-0004](0004-cadastrar-e-inspecionar-ambientes-ssh.md) | Cadastrar e inspecionar ambientes SSH | accepted |
+| [SPEC-0005](0005-editar-configuracoes-globais-de-agentes-via-ssh.md) | Editar configurações globais de agentes via SSH | accepted |
+| [SPEC-0006](0006-cadastrar-contas-do-claude-code-em-perfis-isolados.md) | Cadastrar contas do Claude Code em perfis isolados | accepted |
+| [SPEC-0007](0007-monitorar-cotas-por-conta-do-claude-code.md) | Monitorar cotas por conta do Claude Code | draft |

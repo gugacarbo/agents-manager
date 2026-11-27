@@ -20,6 +20,7 @@ import {
 	Library,
 	Monitor,
 	Terminal,
+	Users,
 } from "lucide-react";
 import {
 	RouteErrorFallback,
@@ -31,8 +32,10 @@ import { Button } from "@/components/ui/button";
 import { CommandPalette } from "@/components/ui/command-palette";
 import { Toaster } from "@/components/ui/sonner";
 import { AgentsPage, agentsQueryKey } from "@/features/agents";
+import { ClaudeAccountProfiles } from "@/features/claude-accounts";
 import { AgentConfigsPage } from "@/features/configs";
 import { DiffDemoPage } from "@/features/diff";
+import { EnvironmentSwitcher } from "@/features/environments";
 import { LibraryPage } from "@/features/library";
 import { ProjectsPage } from "@/features/projects";
 import { RulesPage } from "@/features/rules";
@@ -54,11 +57,22 @@ function RootLayout() {
 	const pathname = useLocation({ select: (location) => location.pathname });
 	const desktop = isTauriRuntime();
 	const section = pathname.split("/")[1];
-	const activeSection = section === "agents" ? "/" : `/${section}`;
-	const tools = desktop
-		? ({ to: "/rules", label: "Rules", icon: FileText } as const)
-		: ({ to: "/demo", label: "Diff demo", icon: FileCode2 } as const);
-	const links = [...navigation, tools];
+	const isClaudeAccounts = pathname === "/accounts/claude";
+	const activeSection = isClaudeAccounts
+		? "/accounts/claude"
+		: section === "agents"
+			? "/"
+			: `/${section}`;
+	const links = desktop
+		? ([
+				...navigation,
+				{ to: "/rules", label: "Rules", icon: FileText },
+				{ to: "/accounts/claude", label: "Claude accounts", icon: Users },
+			] as const)
+		: ([
+				...navigation,
+				{ to: "/demo", label: "Diff demo", icon: FileCode2 },
+			] as const);
 	const currentSection = links.find(({ to }) => to === activeSection);
 	const isConfiguration =
 		section === "agents" || pathname.startsWith("/projects/");
@@ -163,7 +177,13 @@ function RootLayout() {
 						tabIndex={-1}
 						className="mx-auto max-w-7xl px-4 py-7 focus-visible:-outline-offset-2 sm:px-8 sm:py-9 lg:px-12 lg:py-11"
 					>
-						<Outlet />
+						{isClaudeAccounts ? (
+							<Outlet />
+						) : (
+							<EnvironmentSwitcher>
+								<Outlet />
+							</EnvironmentSwitcher>
+						)}
 					</main>
 				</div>
 				<Toaster />
@@ -233,7 +253,16 @@ const libraryRoute = createRoute({
 	path: "/library",
 	component: LibraryPage,
 });
+const claudeAccountsRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/accounts/claude",
+	beforeLoad: () => {
+		if (!isTauriRuntime()) throw redirect({ to: "/", replace: true });
+	},
+	component: ClaudeAccountProfiles,
+});
 const routeTree = rootRoute.addChildren([
+	claudeAccountsRoute,
 	indexRoute,
 	editorRoute,
 	demoRoute,

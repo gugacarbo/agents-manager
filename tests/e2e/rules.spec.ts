@@ -26,6 +26,8 @@ test("requires a fresh review before saving a changed rule", async ({
 						version: "1",
 					};
 					switch (command) {
+						case "list_ssh_environments":
+							return [];
 						case "list_agents":
 							return [
 								{

@@ -64,5 +64,5 @@ sozinho como identidade e não recorrer ao ambiente local após erro remoto.
 ## Confirmation
 
 Revisar a fronteira IPC e executar o DoD da
-[SPEC-0005](../specs/0005-cadastrar-e-inspecionar-ambientes-ssh.md), incluindo integração com
+[SPEC-0004](../specs/0004-cadastrar-e-inspecionar-ambientes-ssh.md), incluindo integração com
 OpenSSH isolado, verificação de identidade e troca de ambiente.

@@ -262,3 +262,90 @@ pub struct SyncApplyResult {
     pub backup_path: Option<String>,
     pub error: Option<crate::error::CoreError>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(tag = "mode", rename_all = "lowercase")]
+pub enum SshConnection {
+    Alias {
+        alias: String,
+    },
+    Manual {
+        host: String,
+        user: String,
+        port: u16,
+    },
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SshEnvironmentDraft {
+    pub name: String,
+    pub connection: SshConnection,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SshEnvironment {
+    pub id: String,
+    pub name: String,
+    pub connection: SshConnection,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SshInventory {
+    pub host: String,
+    pub user: String,
+    pub port: u16,
+    pub claude: bool,
+    pub codex: bool,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "kebab-case")]
+pub enum SshErrorKind {
+    InvalidInput,
+    ClientUnavailable,
+    Authentication,
+    HostKey,
+    Timeout,
+    Connection,
+    Protocol,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "kebab-case")]
+pub enum RemoteConfigId {
+    ClaudeSettings,
+    ClaudeHome,
+    ClaudeNested,
+    CodexConfig,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteConfigEntry {
+    pub id: RemoteConfigId,
+    pub agent: AgentKind,
+    pub label: String,
+    pub format: ConfigFormat,
+}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemoteConfigDocument {
+    pub entry: RemoteConfigEntry,
+    pub host: String,
+    pub user: String,
+    pub port: u16,
+    pub path: String,
+    pub content: String,
+    pub sha256: String,
+    pub secret_spans: Vec<SecretSpan>,
+    pub host_key: String,
+    pub device: u64,
+    pub inode: u64,
+    pub mode: u32,
+    pub uid: u32,
+    pub gid: u32,
+    pub metadata_hash: String,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteSaveResult {
+    pub sha256: String,
+    pub backup_path: String,
+}

@@ -1,4 +1,5 @@
 pub mod commands;
+mod remote_state;
 mod sync_preview;
 mod watcher;
 
@@ -8,27 +9,51 @@ use specta_typescript::Typescript;
 use tauri_specta::{Builder, collect_commands};
 
 fn specta_builder<R: tauri::Runtime>() -> Builder<R> {
-    Builder::<R>::new().commands(collect_commands![
-        commands::list_agents,
-        commands::list_agent_configs,
-        commands::read_config_file,
-        commands::save_config_file,
-        commands::watch_config_file,
-        commands::list_projects,
-        commands::register_project,
-        commands::remove_project,
-        commands::list_project_configs,
-        commands::preview_structured_save,
-        commands::save_structured_config,
-        commands::list_library_items,
-        commands::read_library_item,
-        commands::promote_to_library,
-        commands::save_library_item,
-        commands::delete_library_item,
-        commands::unlink_sync,
-        commands::preview_sync,
-        commands::apply_sync
-    ])
+    macro_rules! build {
+        ($($extra:ident :: $module:ident :: $command:ident),* $(,)?) => {
+            Builder::<R>::new().commands(collect_commands![
+                commands::list_agents,
+                commands::list_agent_configs,
+                commands::read_config_file,
+                commands::save_config_file,
+                commands::watch_config_file,
+                commands::list_projects,
+                commands::register_project,
+                commands::remove_project,
+                commands::list_project_configs,
+                commands::preview_structured_save,
+                commands::save_structured_config,
+                commands::list_library_items,
+                commands::read_library_item,
+                commands::promote_to_library,
+                commands::save_library_item,
+                commands::delete_library_item,
+                commands::unlink_sync,
+                commands::preview_sync,
+                commands::apply_sync,
+                commands::list_ssh_environments,
+                commands::save_ssh_environment,
+                commands::remove_ssh_environment,
+                commands::test_ssh_connection,
+                commands::inspect_ssh_environment,
+                commands::remote::list_remote_config_files,
+                commands::remote::open_remote_config,
+                commands::remote::review_remote_config,
+                commands::remote::save_remote_config,
+                commands::remote::verify_remote_config
+                $(,$extra::$module::$command)*
+            ])
+        };
+    }
+    #[cfg(target_os = "linux")]
+    return build!(
+        commands::claude_accounts::list_claude_accounts,
+        commands::claude_accounts::create_claude_account,
+        commands::claude_accounts::start_claude_account_login,
+        commands::claude_accounts::get_claude_account_status,
+    );
+    #[cfg(not(target_os = "linux"))]
+    build!()
 }
 
 fn with_ipc_handler<R: tauri::Runtime>(
@@ -38,6 +63,7 @@ fn with_ipc_handler<R: tauri::Runtime>(
     use tauri::{Emitter, Manager};
     app.manage(watcher::WatchState::default())
         .manage(sync_preview::PreviewState::default())
+        .manage(remote_state::RemoteState::default())
         .setup(|app| {
             let handle = app.handle().clone();
             let state = app.state::<watcher::WatchState>();
@@ -129,6 +155,9 @@ mod tests {
         export_bindings_to(&bindings_path).unwrap();
 
         let content = fs::read_to_string(&bindings_path).unwrap();
+        assert!(content.contains("listSshEnvironments"));
+        assert!(content.contains("testSshConnection"));
+        assert!(content.contains("inspectSshEnvironment"));
         assert!(content.contains("listAgents"));
         assert!(content.contains("AgentSummary"));
         assert!(content.contains("CoreError"));
