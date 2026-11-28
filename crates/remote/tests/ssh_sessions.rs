@@ -5,8 +5,23 @@ use agents_manager_remote::{
     ssh::SshTransport,
     ssh_sessions::{SshSessionReference, probe_sessions},
 };
-use std::{os::unix::fs::PermissionsExt, time::Duration};
+use std::{io::Write, os::unix::fs::OpenOptionsExt, time::Duration};
 use tempfile::tempdir;
+
+/// Writes an executable script with its final mode in a single `open`, so no process can observe
+/// a writable-or-unprivileged intermediate state between creation and the first spawn.
+fn write_executable(path: &std::path::Path, contents: &str) {
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .mode(0o700)
+        .open(path)
+        .unwrap();
+    file.write_all(contents.as_bytes()).unwrap();
+    file.sync_all().unwrap();
+    drop(file);
+}
 
 fn draft() -> SshEnvironmentDraft {
     SshEnvironmentDraft {
@@ -26,8 +41,7 @@ fn simulated_ssh(tmp: &tempfile::TempDir, reply: &str) -> SshTransport {
         r#"{"host":"remote","user":"alice","home":"/home/alice"}"#,
         reply
     );
-    std::fs::write(&program, script).unwrap();
-    std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o700)).unwrap();
+    write_executable(&program, &script);
     SshTransport::new(program, None, Duration::from_secs(1))
 }
 
@@ -83,8 +97,7 @@ fn resolves_reference_route_without_forcing_a_port() {
 fn unreachable_ssh(tmp: &tempfile::TempDir) -> SshTransport {
     let program = tmp.path().join("ssh-sim");
     let script = "#!/bin/sh\nfor arg in \"$@\"; do if [ \"$arg\" = -G ]; then printf 'hostname remote\\nuser alice\\nport 22\\n'; exit 0; fi; done\nprintf 'ssh: connect to host remote port 22: No route to host\\n' >&2\nexit 255\n";
-    std::fs::write(&program, script).unwrap();
-    std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o700)).unwrap();
+    write_executable(&program, script);
     SshTransport::new(program, None, Duration::from_secs(1))
 }
 

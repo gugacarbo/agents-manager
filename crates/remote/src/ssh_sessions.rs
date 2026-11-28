@@ -110,13 +110,17 @@ pub fn probe_sessions(
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    let mut child = command.spawn().map_err(|e| CoreError::SshError {
+    let mut child = ssh::spawn_retrying_txtbusy(&mut command).map_err(|e| CoreError::SshError {
         kind: if e.kind() == std::io::ErrorKind::NotFound {
             SshErrorKind::ClientUnavailable
         } else {
             SshErrorKind::Connection
         },
-        message: "Could not start SSH session discovery.".into(),
+        message: if e.kind() == std::io::ErrorKind::NotFound {
+            "Could not start SSH session discovery.".into()
+        } else {
+            format!("Could not start SSH session discovery: {e}.")
+        },
     })?;
     let input = child
         .stdin

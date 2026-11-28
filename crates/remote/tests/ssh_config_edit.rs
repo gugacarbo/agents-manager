@@ -7,6 +7,21 @@ use agents_manager_core::{
     error::CoreError,
 };
 use agents_manager_remote::remote_config;
+
+/// Writes an executable with its final mode in a single `open` (no writable intermediate state).
+fn write_executable(path: &std::path::Path, contents: &str) {
+    use std::{io::Write, os::unix::fs::OpenOptionsExt};
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .mode(0o700)
+        .open(path)
+        .unwrap();
+    file.write_all(contents.as_bytes()).unwrap();
+    file.sync_all().unwrap();
+    drop(file);
+}
 fn document() -> RemoteConfigDocument {
     RemoteConfigDocument {
         entry: RemoteConfigEntry {
@@ -145,8 +160,17 @@ for line in child.stdout:
     sys.stdout.buffer.write(line); sys.stdout.buffer.flush()
 "#).unwrap();
     let wrapper = root.join("force.sh");
-    fs::write(&wrapper,format!("#!/bin/sh\nexport AM_TEST_HOME='{}' LD_PRELOAD='{}' AM_TEST_ATTEMPTS='{}'\n[ \"$(/usr/bin/python3 -c 'import os,pwd; print(pwd.getpwuid(os.getuid()).pw_dir)')\" = \"$AM_TEST_HOME\" ] || exit 99\nif [ -f '{}' ]; then exec /usr/bin/python3 -u '{}'; fi\nexec /bin/sh -c \"$SSH_ORIGINAL_COMMAND\"\n",home.display(),so.display(),attempts.display(),drop_flag.display(),proxy.display())).unwrap();
-    fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
+    write_executable(
+        &wrapper,
+        &format!(
+            "#!/bin/sh\nexport AM_TEST_HOME='{}' LD_PRELOAD='{}' AM_TEST_ATTEMPTS='{}'\n[ \"$(/usr/bin/python3 -c 'import os,pwd; print(pwd.getpwuid(os.getuid()).pw_dir)')\" = \"$AM_TEST_HOME\" ] || exit 99\nif [ -f '{}' ]; then exec /usr/bin/python3 -u '{}'; fi\nexec /bin/sh -c \"$SSH_ORIGINAL_COMMAND\"\n",
+            home.display(),
+            so.display(),
+            attempts.display(),
+            drop_flag.display(),
+            proxy.display()
+        ),
+    );
     let sshd = std::env::var_os("AGENTS_MANAGER_SSHD")
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|| "/usr/sbin/sshd".into());
@@ -334,7 +358,7 @@ fn lost_confirmation_does_not_retry_or_report_success() {
     use agents_manager_core::domain::{SshConnection, SshEnvironmentDraft};
     use agents_manager_remote::ssh::SshTransport;
     use sha2::{Digest, Sha256};
-    use std::{fs, os::unix::fs::PermissionsExt, time::Duration};
+    use std::{fs, time::Duration};
     use tempfile::tempdir;
     let tmp = tempdir().unwrap();
     let home = tmp.path().join("home");
@@ -366,8 +390,7 @@ for line in sys.stdin:
         hash = hash,
         counter = counter.to_str().unwrap()
     );
-    fs::write(&program, code).unwrap();
-    fs::set_permissions(&program, fs::Permissions::from_mode(0o700)).unwrap();
+    write_executable(&program, &code);
     let transport = SshTransport::new(program, None, Duration::from_secs(2));
     let draft = SshEnvironmentDraft {
         name: "fixture".into(),

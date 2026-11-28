@@ -2,6 +2,22 @@
 use agents_manager_core::domain::{SshConnection, SshEnvironmentDraft};
 use agents_manager_remote::ssh;
 use tempfile::tempdir;
+
+/// Writes an executable with its final mode in a single `open` (no writable intermediate state).
+fn write_executable(path: &std::path::Path, contents: &str) {
+    use std::{io::Write, os::unix::fs::OpenOptionsExt};
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .mode(0o700)
+        .open(path)
+        .unwrap();
+    file.write_all(contents.as_bytes()).unwrap();
+    file.sync_all().unwrap();
+    drop(file);
+}
+
 #[test]
 fn registry_persists_and_rejects_invalid_before_saving() {
     let temp = tempdir().unwrap();
@@ -32,14 +48,10 @@ fn registry_persists_and_rejects_invalid_before_saving() {
 #[test]
 fn errors_are_typed_and_timeout_does_not_wait_for_children() {
     use agents_manager_core::{domain::SshErrorKind, error::CoreError};
-    use std::{
-        os::unix::fs::PermissionsExt,
-        time::{Duration, Instant},
-    };
+    use std::time::{Duration, Instant};
     let tmp = tempdir().unwrap();
     let script = tmp.path().join("ssh");
-    std::fs::write(&script, "#!/bin/sh\nsleep 2 &\nwait\n").unwrap();
-    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o700)).unwrap();
+    write_executable(&script, "#!/bin/sh\nsleep 2 &\nwait\n");
     let draft = SshEnvironmentDraft {
         name: "x".into(),
         connection: SshConnection::Alias {
@@ -144,22 +156,18 @@ fn real_openssh_alias_and_manual_auth_identity_and_host_key_failures() {
     symlink("/usr/bin/id", bin.join("id")).unwrap();
     let claude = bin.join("claude");
     let marker = root.join("agent_was_executed");
-    fs::write(
+    write_executable(
         &claude,
-        format!("#!/bin/sh\nprintf executed > '{}'\n", marker.display()),
-    )
-    .unwrap();
-    fs::set_permissions(&claude, fs::Permissions::from_mode(0o700)).unwrap();
+        &format!("#!/bin/sh\nprintf executed > '{}'\n", marker.display()),
+    );
     let forced = root.join("command.sh");
-    fs::write(
+    write_executable(
         &forced,
-        format!(
+        &format!(
             "#!/bin/sh\nPATH='{}'; export PATH\nexec /bin/sh -c \"$SSH_ORIGINAL_COMMAND\"\n",
             bin.display()
         ),
-    )
-    .unwrap();
-    fs::set_permissions(&forced, fs::Permissions::from_mode(0o700)).unwrap();
+    );
     let sshd = std::env::var_os("AGENTS_MANAGER_SSHD")
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|| "/usr/sbin/sshd".into());
@@ -248,12 +256,10 @@ fn real_openssh_alias_and_manual_auth_identity_and_host_key_failures() {
     let local_claude = local_bin.join("claude");
     let local_codex = local_bin.join("codex");
     for path in [&local_claude, &local_codex] {
-        fs::write(
+        write_executable(
             path,
-            format!("#!/bin/sh\nprintf executed > '{}'\n", marker.display()),
-        )
-        .unwrap();
-        fs::set_permissions(path, fs::Permissions::from_mode(0o700)).unwrap();
+            &format!("#!/bin/sh\nprintf executed > '{}'\n", marker.display()),
+        );
     }
     let outside_path = transport.inventory(&alias).unwrap();
     assert!(outside_path.claude && outside_path.codex);
